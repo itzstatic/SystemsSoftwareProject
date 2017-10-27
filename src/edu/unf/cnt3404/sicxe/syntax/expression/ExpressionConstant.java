@@ -30,4 +30,8 @@ public class ExpressionConstant implements ExpressionNode {
 		//No symbols to add
 	}
 
+	@Override
+	public String toString() {
+		return Integer.toString(value);
+	}
 }

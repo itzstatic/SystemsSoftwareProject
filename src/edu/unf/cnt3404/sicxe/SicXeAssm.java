@@ -3,7 +3,6 @@ package edu.unf.cnt3404.sicxe;
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,6 +51,7 @@ public class SicXeAssm {
 			if (c instanceof ModifiableCommand) {
 				//Create mod records
 			}
+			program.incrementLocationCounter(c.getSize());
 		}
 		//Create end record
 	}

@@ -30,4 +30,8 @@ public class ExpressionSymbol implements ExpressionNode {
 		}
 	}
 
+	@Override
+	public String toString() {
+		return symbol;
+	}
 }

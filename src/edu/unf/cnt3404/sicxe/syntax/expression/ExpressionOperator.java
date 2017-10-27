@@ -52,11 +52,21 @@ public class ExpressionOperator implements ExpressionNode {
 		right.addAbsoluteSymbols(program, symbols);
 	}
 	
+	@Override
+	public String toString() {
+		switch(operator) {
+		case ADD: return "+";
+		case SUB: return "-";
+		case MUL: return "*";
+		case DIV: return "/";
+		default: throw new IllegalStateException(operator.toString());
+		}
+	}
+	
 	public static enum Type {
 		ADD,
 		SUB,
 		MUL,
 		DIV
 	}
-	
 }

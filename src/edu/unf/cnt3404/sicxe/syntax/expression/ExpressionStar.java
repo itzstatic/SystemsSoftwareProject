@@ -23,4 +23,8 @@ public class ExpressionStar implements ExpressionNode {
 		//No symbols in the star expression
 	}
 
+	@Override
+	public String toString() {
+		return "*";
+	}
 }

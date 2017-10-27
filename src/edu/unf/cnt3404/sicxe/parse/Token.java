@@ -1,7 +1,13 @@
 package edu.unf.cnt3404.sicxe.parse;
 
+//Wraps a syntax element with its position in the source code
 public class Token {
+	
 	private Object value;
+	//The actual type of value varies depending on token type:
+	//Number tokens contain a boxed Integer;
+	//Symbol and comment tokens contain a String;
+	//Simple tokens contain a boxed Character;
 	private Type type;
 	private int row;
 	private int col;
@@ -14,6 +20,7 @@ public class Token {
 		this.value = value;
 	}
 	
+	//Constructor methods to create tokens
 	public static Token number(int row, int col, int num) {
 		return new Token(row, col, Type.NUMBER, num);
 	}

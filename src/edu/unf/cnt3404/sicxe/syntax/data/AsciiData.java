@@ -2,6 +2,7 @@ package edu.unf.cnt3404.sicxe.syntax.data;
 
 import edu.unf.cnt3404.sicxe.syntax.Data;
 
+//Represents data from an ascii string
 public class AsciiData implements Data {
 
 	private String value;

@@ -26,7 +26,7 @@ public class Expression {
 	
 	public List<String> getExternalSymbols(Program program) {
 		List<String> result = new ArrayList<>();
-		root.addExternalSymbols(program, result);
+		root.addAbsoluteSymbols(program, result);
 		return result;
 	}
 }

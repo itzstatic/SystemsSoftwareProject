@@ -14,5 +14,5 @@ public interface ExpressionNode {
 	int getValue(Program program);
 	
 	//Appends external symbols in this expression to the list
-	void addExternalSymbols(Program program, List<String> symbols);
+	void addAbsoluteSymbols(Program program, List<String> symbols);
 }

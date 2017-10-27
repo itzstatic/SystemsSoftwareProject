@@ -9,7 +9,7 @@ public class ExpressionSymbol implements ExpressionNode {
 	private String symbol;
 	
 	public ExpressionSymbol(String symbol) {
-	//Creates an expression from the given symbol
+		//Creates an expression from the given symbol
 		this.symbol = symbol;
 	}
 	
@@ -24,8 +24,8 @@ public class ExpressionSymbol implements ExpressionNode {
 	}
 
 	@Override
-	public void addExternalSymbols(Program program, List<String> symbols) {
-		if (program.getSymbol(symbol).isExternal()) {
+	public void addAbsoluteSymbols(Program program, List<String> symbols) {
+		if (program.getSymbol(symbol).isAbsolute()) {
 			symbols.add(symbol);
 		}
 	}

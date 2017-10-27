@@ -19,7 +19,7 @@ public class ExpressionStar implements ExpressionNode {
 	}
 
 	@Override
-	public void addExternalSymbols(Program program, List<String> symbols) {
+	public void addAbsoluteSymbols(Program program, List<String> symbols) {
 		//No symbols in the star expression
 	}
 

@@ -35,19 +35,21 @@ public class ExpressionOperator implements ExpressionNode {
 	
 	@Override
 	public int getValue(Program program) {
+		int l = left.getValue(program);
+		int r = right.getValue(program);
 		switch(operator) {
-		case ADD: return left.getValue(program) + right.getValue(program);
-		case SUB: return left.getValue(program) - right.getValue(program);
-		case MUL: return left.getValue(program) * right.getValue(program);
-		case DIV: return left.getValue(program) / right.getValue(program);
+		case ADD: return l + r;
+		case SUB: return l - r;
+		case MUL: return l * r;
+		case DIV: return l / r;
 		default: throw new IllegalStateException(operator.toString());
 		}
 	}
 
 	@Override
-	public void addExternalSymbols(Program program, List<String> symbols) {
-		left.addExternalSymbols(program, symbols);
-		right.addExternalSymbols(program, symbols);
+	public void addAbsoluteSymbols(Program program, List<String> symbols) {
+		left.addAbsoluteSymbols(program, symbols);
+		right.addAbsoluteSymbols(program, symbols);
 	}
 	
 	public static enum Type {

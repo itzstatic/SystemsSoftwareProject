@@ -23,6 +23,11 @@ public class HexData implements Data {
 	}
 	
 	@Override
+	public int getSize() {
+		return value.length() / 2;
+	}
+	
+	@Override
 	public String toString() {
 		return "X'" + value + "'";
 	}

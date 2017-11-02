@@ -1,5 +1,6 @@
 package edu.unf.cnt3404.sicxe.syntax;
 
+
 //Represents a line of useful code in a SicXe program.
 //A command is created when the source is parsed, and the location counter
 //must be incremented. A command might have a corresponding label definition
@@ -17,4 +18,9 @@ public interface Command {
 	void setComment(String comment);
 	//Gets the comment for this command, or null if there is no comment
 	String getComment();
+	
+	void setLine(int line);
+	//Gets the line number for this command, or a negative number if this 
+	//command was not in the source
+	int getLine();
 }

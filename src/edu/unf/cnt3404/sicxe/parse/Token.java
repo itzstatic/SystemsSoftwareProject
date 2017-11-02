@@ -54,9 +54,6 @@ public class Token {
 	public int getCol() {
 		return col;
 	}
-	public Type getType() {
-		return type;
-	}
 	//as... methods not save to use until the caller has verified this token's Type
 	//because these might throw casting exceptions
 	public int asNumber() {
@@ -82,7 +79,6 @@ public class Token {
 	
 	@Override
 	public String toString() {
-		System.out.print(row + " " + col + " : ");
 		switch(type) {
 		case NUMBER: return Integer.toString(asNumber());
 		case SYMBOL: return asSymbol();

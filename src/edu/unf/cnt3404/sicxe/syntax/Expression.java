@@ -20,13 +20,23 @@ public class Expression {
 		return root.getValue(program);
 	}
 	
-	public boolean isAbsolute(Program program) {
-		return root.isAbsolute(program);
+	//A degree 0 expression is absolute. 
+	//A degree +/-1 expression is relative.
+	//Any degree higher is not valid in a SicXe program
+	public int getDegree() {
+		return 0;
 	}
 	
 	public List<String> getExternalSymbols(Program program) {
 		List<String> result = new ArrayList<>();
 		root.addAbsoluteSymbols(program, result);
 		return result;
+	}
+	
+	@Override
+	public String toString() {
+		StringBuilder result = new StringBuilder();
+		root.write(result);
+		return result.toString();
 	}
 }

@@ -26,6 +26,11 @@ public class ExpressionNumber implements ExpressionNode {
 	}
 
 	@Override
+	public void write(StringBuilder infix) {
+		infix.append(toString());
+	}
+	
+	@Override
 	public void addAbsoluteSymbols(Program program, List<String> symbols) {
 		//No symbols to add
 	}

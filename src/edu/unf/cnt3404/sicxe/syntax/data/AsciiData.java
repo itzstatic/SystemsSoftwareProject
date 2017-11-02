@@ -20,6 +20,11 @@ public class AsciiData implements Data {
 		}
 		return result;
 	}
+	
+	@Override
+	public int getSize() {
+		return value.length();
+	}
 
 	@Override
 	public String toString() {

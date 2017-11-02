@@ -11,6 +11,10 @@ public class Lexer {
 	private static final String SIMPLE_CHARACTERS = "#@,+-*/()";
 	
 	private Scanner scanner;
+	//For peaking: If null, then a call to peek() needs to invoke next(),
+	//and then make buffer non-null.
+	//Otherwise, a call to peek() will yield the buffer.
+	private Token buffer; 
 	
 	//Creates a lexer from a buffered reader. The reader can be from a file
 	//Or from the standard in, etc.
@@ -34,6 +38,13 @@ public class Lexer {
 	//Throws an exception if there is no available token.
 	//Never returns null
 	public Token next() {
+		//If buffer is not null, then there was a call to peek() AFTER the last 
+		//call to next(). in other words, only consume the buffer
+		if (buffer != null) {
+			Token result = buffer;
+			buffer = null;
+			return result;
+		}
 		char c;
 		int row = scanner.getRow();
 		int col = scanner.getCol();
@@ -118,15 +129,20 @@ public class Lexer {
 	//Gets the next token but doesn't consume it
 	//Returns null if there are no more tokens
 	public Token peek() {
-		return null;
+		if (buffer == null) {
+			if (scanner.peek() == Scanner.EOS) {
+				return null;
+			}
+			return buffer = next();
+		} 
+		return buffer;
 	}
 	
 	//Returns whether the next token is simple and matches the given character
 	//If this method returns true, then the token is consumed.
 	public boolean accept(char c) {
 		Token token = peek();
-		boolean result = token != null && token.getType() == Type.SIMPLE
-			&& token.is(c);
+		boolean result = token != null && token.is(Type.SIMPLE) && token.is(c);
 		if (result) {
 			next();
 		}
@@ -137,7 +153,7 @@ public class Lexer {
 	//If this method returns null, then the token was not of the given type
 	public Token accept(Type type) {
 		Token result = peek();
-		if (result.getType() == type) {
+		if (result.is(type)) {
 			next();
 			return result;
 		}
@@ -148,7 +164,7 @@ public class Lexer {
 	//a simple token, or did not match the given character.
 	public void expect(char c) {
 		Token token = next();
-		if (token.getType() != Type.SIMPLE || !token.is(c)) {
+		if (!token.is(Type.SIMPLE) || !token.is(c)) {
 			throw new ParseError(token, "Expected " + c + " not " + token);
 		}
 	}
@@ -157,7 +173,7 @@ public class Lexer {
 	//not of the given type
 	public Token expect(Type type) {
 		Token result = next();
-		if (result.getType() != type) {
+		if (!result.is(type)) {
 			throw new ParseError(result, "Expected " + type + " not " + result);
 		}
 		return result;

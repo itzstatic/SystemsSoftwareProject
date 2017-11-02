@@ -19,6 +19,11 @@ public class ExpressionStar implements ExpressionNode {
 	}
 
 	@Override
+	public void write(StringBuilder infix) {
+		infix.append('*');
+	}
+	
+	@Override
 	public void addAbsoluteSymbols(Program program, List<String> symbols) {
 		//No symbols in the star expression
 	}

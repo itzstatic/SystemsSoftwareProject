@@ -24,6 +24,11 @@ public class ExpressionSymbol implements ExpressionNode {
 	}
 
 	@Override
+	public void write(StringBuilder infix) {
+		infix.append(symbol);
+	}
+	
+	@Override
 	public void addAbsoluteSymbols(Program program, List<String> symbols) {
 		if (program.getSymbol(symbol).isAbsolute()) {
 			symbols.add(symbol);

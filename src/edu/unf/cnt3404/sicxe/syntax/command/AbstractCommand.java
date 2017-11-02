@@ -6,6 +6,7 @@ import edu.unf.cnt3404.sicxe.syntax.Command;
 public abstract class AbstractCommand implements Command {
 	private String label;
 	private String comment;
+	private int line;
 	
 	@Override
 	public void setLabel(String label) {
@@ -26,5 +27,14 @@ public abstract class AbstractCommand implements Command {
 	public String getComment() {
 		return comment;
 	}
+
+	@Override
+	public void setLine(int line) {
+		this.line = line;
+	}
 	
+	@Override
+	public int getLine() {
+		return line;
+	}
 }

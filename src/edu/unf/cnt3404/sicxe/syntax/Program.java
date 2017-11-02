@@ -11,6 +11,9 @@ public class Program {
 	private String name;
 	private int start;
 	private int first;
+	//The contents of the base register, or, an integer less than 0 if
+	//base is disabled
+	private int base;
 	
 	private int locctr;
 	private List<String> definitions = new ArrayList<>();
@@ -45,6 +48,19 @@ public class Program {
 	}
 	public void incrementLocationCounter(int step) {
 		locctr += step;
+	}
+	//Base related methods
+	public void setBase(int base) {
+		this.base = base;
+	}
+	public void disableBase() {
+		base = -1;
+	}
+	public int getBase() {
+		return base;
+	}
+	public boolean isBaseEnabled() {
+		return base >= 0;
 	}
 	//External related methods
 	public void addExternalDefintion(String def) {

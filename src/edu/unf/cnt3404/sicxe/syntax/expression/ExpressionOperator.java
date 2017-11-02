@@ -47,20 +47,33 @@ public class ExpressionOperator implements ExpressionNode {
 	}
 
 	@Override
-	public void addAbsoluteSymbols(Program program, List<String> symbols) {
-		left.addAbsoluteSymbols(program, symbols);
-		right.addAbsoluteSymbols(program, symbols);
+	public void write(StringBuilder infix) {
+		//Whether to parenthesize the left
+		boolean l = left instanceof ExpressionOperator
+			&& ((ExpressionOperator)left).operator.getPrecedence()
+			< operator.getPrecedence();
+		//Likewise for the right
+		boolean r = right instanceof ExpressionOperator
+			&& ((ExpressionOperator)right).operator.getPrecedence()
+			< operator.getPrecedence();
+		
+		if (l) infix.append('(');
+		left.write(infix);
+		if (l) infix.append(')');
+		
+		infix.append(' ');
+		infix.append(operator.toString());
+		infix.append(' ');
+		
+		if (r) infix.append('(');
+		right.write(infix);
+		if (r) infix.append(')');
 	}
 	
 	@Override
-	public String toString() {
-		switch(operator) {
-		case ADD: return "+";
-		case SUB: return "-";
-		case MUL: return "*";
-		case DIV: return "/";
-		default: throw new IllegalStateException(operator.toString());
-		}
+	public void addAbsoluteSymbols(Program program, List<String> symbols) {
+		left.addAbsoluteSymbols(program, symbols);
+		right.addAbsoluteSymbols(program, symbols);
 	}
 	
 	public static enum Type {
@@ -78,6 +91,17 @@ public class ExpressionOperator implements ExpressionNode {
 		
 		public int getPrecedence() {
 			return precedence;
+		}
+		
+		@Override
+		public String toString() {
+			switch(this) {
+			case ADD: return "+";
+			case SUB: return "-";
+			case MUL: return "*";
+			case DIV: return "/";
+			default: throw new IllegalStateException();
+			}
 		}
 	}
 }

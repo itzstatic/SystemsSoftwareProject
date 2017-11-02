@@ -1,6 +1,5 @@
 package edu.unf.cnt3404.sicxe.parse;
 
-import java.io.BufferedReader;
 import java.util.Stack;
 
 import edu.unf.cnt3404.sicxe.syntax.Command;
@@ -14,11 +13,11 @@ import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionSymbol;
 //Calls the lexer repeatedly in order to create Commands.
 public class Parser {
 	
-	final private Lexer lexer = null;
+	private Lexer lexer;
 	
 	//Creates a parser from the reader
-	public Parser(BufferedReader reader) {
-		
+	public Parser(Lexer lexer) {
+		this.lexer = lexer;
 	}
 	
 	//Returns the next command from the source, or, null if there
@@ -31,7 +30,7 @@ public class Parser {
 	//token, a comment token, or an illegal token. Throws an exception if an illegal token 
 	//is reached. Implements Dijkstra's Shunting-Yard Algorithm to turn an infix
 	//arithmetic expression into a syntax tree
-	private Expression parseExpression() {
+	public Expression parseExpression() {
 		Stack<ExpressionNode> nodes = new Stack<>();
 		//Null element in operators indicates parentheses
 		Stack<ExpressionOperator.Type> operators = new Stack<>();
@@ -40,7 +39,9 @@ public class Parser {
 		//multiplication operator versus as a location counter operand.
 		boolean expectsOperator = false; //Initially expect a value
 		//While there are tokens to be read
-		while ((token = lexer.peek()).getType() != Token.Type.COMMENT && !token.is('\n')) {
+		while ((token = lexer.peek()) != null) {
+			//System.out.println("OPERATORS: " + operators);
+			//System.out.println("OPERANDS: " + nodes);
 			if (lexer.accept(Token.Type.WHITESPACE) != null) {
 				continue;
 			}
@@ -73,7 +74,8 @@ public class Parser {
 					//in this branch, so 1) I cannot push an operator onto the stack, and
 					//2) I should not toggle expectsOperator
 				} else {
-					throw new ParseError(token, "Expected operator not " + token);
+					//throw new ParseError(token, "Expected operator not " + token);
+					break;
 				}
 				//Output higher precedence operators into the tree
 				//If the stack top is ever null, then it is a parentheses on the stack.
@@ -96,7 +98,8 @@ public class Parser {
 					operators.push(null);
 					continue; //Continue so that I do not toggle expectsOperator
 				} else {
-					throw new ParseError(token, "Expected operand not " + token);
+					//throw new ParseError(token, "Expected operand not " + token);
+					break;
 				}
 			}
 			expectsOperator = !expectsOperator;
@@ -106,7 +109,8 @@ public class Parser {
 			ExpressionOperator.Type operator = operators.pop();
 			//If a parentheses was found on the stack
 			if (operator == null) {
-				throw new ParseError(token, "Expected ) not " + token);
+				//Token is always null at this point
+				throw new ParseError(token, "Unbalanced parentheses" + token);
 			}
 			//Ensure left is the first dequeue
 			//Pop operator into nodes

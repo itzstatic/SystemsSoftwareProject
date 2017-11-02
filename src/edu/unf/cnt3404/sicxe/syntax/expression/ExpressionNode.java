@@ -13,6 +13,9 @@ public interface ExpressionNode {
 	//Returns the value of this expression
 	int getValue(Program program);
 	
+	//Write infix string of this expression
+	void write(StringBuilder infix);
+	
 	//Appends external symbols in this expression to the list
 	void addAbsoluteSymbols(Program program, List<String> symbols);
 }

@@ -75,8 +75,8 @@ public class Parser {
 				//Output higher precedence operators into the tree
 				//If the stack top is ever null, then it is a parentheses on the stack.
 				//Wikipedia did not seem to say what to do, or if this scenario is possible.
-				while (!operators.isEmpty() && operators.peek().getPrecedence() 
-						>= operator.getPrecedence()) {
+				while (!operators.isEmpty() && operators.peek() != null && 
+						operators.peek().getPrecedence() >= operator.getPrecedence()) {
 					nodes.add(new ExpressionOperator(operators.pop(), nodes.poll(), nodes.poll()));
 				}
 				operators.push(operator);

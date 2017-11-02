@@ -12,6 +12,7 @@ public class Token {
 	//Simple tokens contain a boxed Character;
 	//Data tokens contain a Data object;
 	//Whitespace tokens contain a null pointer;
+	//Newline tokens contain a null pointer;
 	private Type type;
 	private int row;
 	private int col;
@@ -43,6 +44,9 @@ public class Token {
 	public static Token whitespace(int row, int col) {
 		return new Token(row, col, Type.WHITESPACE, null);
 	}
+	public static Token	newline(int row, int col) {
+		return new Token(row, col, Type.NEWLINE, null);
+	}
 	
 	public int getRow() {
 		return row;
@@ -72,8 +76,13 @@ public class Token {
 		return ((Character)value).charValue() == c;
 	}
 	
+	public boolean is(Type t) {
+		return this.type == t;
+	}
+	
 	@Override
 	public String toString() {
+		System.out.print(row + " " + col + " : ");
 		switch(type) {
 		case NUMBER: return Integer.toString(asNumber());
 		case SYMBOL: return asSymbol();
@@ -81,6 +90,7 @@ public class Token {
 		case DATA: return asData().toString();
 		case SIMPLE: return Character.toString((Character)value);
 		case WHITESPACE: return "whitespace";
+		case NEWLINE: return "newline";
 		default: throw new IllegalStateException(type.toString());
 		}
 	}
@@ -92,5 +102,6 @@ public class Token {
 		DATA, //X'...' or C'...'
 		SIMPLE, //A simple token is one character
 		WHITESPACE,
+		NEWLINE
 	}
 }

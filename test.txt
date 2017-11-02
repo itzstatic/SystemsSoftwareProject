@@ -1,0 +1,8 @@
+proga	start	0
+		extdef	lista,enda
+		extref	listb,endb,listc,endc
+		
+		
+ref1	lda		lista
+ref2	+ldt	listb+4
+ref3	ldx		#enda-lista

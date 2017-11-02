@@ -8,8 +8,8 @@ import java.util.Stack;
 import edu.unf.cnt3404.sicxe.parse.Token.Type;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
-import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNumber;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNode;
+import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNumber;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionOperator;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionStar;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionSymbol;
@@ -36,9 +36,8 @@ public class Parser {
 	//arithmetic expression into a syntax tree
 	private Expression parseExpression() {
 		Queue<ExpressionNode> nodes = new ArrayDeque<>();
-		//Null element in operator indicates parentheses
+		//Null element in operators indicates parentheses
 		Stack<ExpressionOperator.Type> operators = new Stack<>();
-		ExpressionOperator.Type operator;
 		Token token;
 		//This flag toggles between tokens. It is required to distinguish star (*) as a
 		//multiplication operator versus as a location counter operand.
@@ -47,53 +46,53 @@ public class Parser {
 		while ((token = lexer.peek()).getType() != Type.COMMENT && !token.is('\n')) {
 			if (lexer.accept(Type.WHITESPACE) != null) {
 				continue;
-			} else if (lexer.accept(Type.SYMBOL) != null) {
-				nodes.add(new ExpressionSymbol(token.asSymbol()));
-			} else if (lexer.accept(Type.NUMBER) != null) {
-				nodes.add(new ExpressionNumber(token.asNumber()));
-			} else if (lexer.accept('*')) {
-				if (expectsOperator) {
-					operators.push(ExpressionOperator.Type.MUL);
+			}
+			if (expectsOperator) {
+				ExpressionOperator.Type operator;
+				//Read the operator
+				if (lexer.accept('+')) {
+					operator = ExpressionOperator.Type.ADD;
+				} else if (lexer.accept('-')) {
+					operator = ExpressionOperator.Type.SUB;
+				} else if (lexer.accept('*')) {
+					operator = ExpressionOperator.Type.MUL;
+				} else if (lexer.accept('/')) {
+					operator = ExpressionOperator.Type.DIV;
 				} else {
+					throw new ParseError(token, "Expected operator not " + token);
+				}
+				//Output higher precedence operators into the tree
+				//If the stack top is ever null, then it is a parentheses on the stack.
+				//Wikipedia did not seem to say what to do, or if this scenario is possible.
+				while (!operators.isEmpty() && operators.peek().getPrecedence() 
+						>= operator.getPrecedence()) {
+					nodes.add(new ExpressionOperator(operators.pop(), nodes.poll(), nodes.poll()));
+				}
+				//Output the read operator into the tree
+				nodes.add(new ExpressionOperator(operator, nodes.poll(), nodes.poll()));
+			} else { //If the parser expects an operand
+				if (lexer.accept(Type.SYMBOL) != null) {
+					nodes.add(new ExpressionSymbol(token.asSymbol()));
+				} else if (lexer.accept(Type.NUMBER) != null) {
+					nodes.add(new ExpressionNumber(token.asNumber()));
+				} else if (lexer.accept('*')) {
 					nodes.add(new ExpressionStar());
+				} else {
+					throw new ParseError(token, "Expected operand not " + token);
 				}
-			} else if (lexer.accept('+')) {
-				operators.push(ExpressionOperator.Type.ADD);
-			} else if (lexer.accept('-')) {
-				operators.push(ExpressionOperator.Type.SUB);
-			} else if (lexer.accept('/')) {
-				operators.push(ExpressionOperator.Type.DIV);
-			} else if (lexer.accept('(')) {
-				operators.push(null);
-			} else if (lexer.accept(')')) {
-				//While there are more operators and the operator is not a parentheses
-				while(!operators.isEmpty() && (operator = operators.pop()) != null) {
-					//Ensure left is the first dequeue
-					ExpressionNode left = nodes.poll();
-					ExpressionNode right = nodes.poll();
-					//Pop operators into nodes
-					nodes.add(new ExpressionOperator(operator, left, right));
-				}
-				//If there was no left parentheses (null) found on the stack,
-				if (operators.isEmpty()) {
-					throw new ParseError(token, "Expected ) not " + token);
-				}
-			} else {
-				//error
 			}
 			expectsOperator = !expectsOperator;
 		}
 		//Pop all excess operators from the stack
-		while(!operators.isEmpty() && (operator = operators.pop()) != null) {
+		while(!operators.isEmpty()) {
+			ExpressionOperator.Type operator = operators.pop();
+			//If a parentheses was found on the stack
+			if (operator == null) {
+				throw new ParseError(token, "Did not expect (");
+			}
 			//Ensure left is the first dequeue
-			ExpressionNode left = nodes.poll();
-			ExpressionNode right = nodes.poll();
-			//Pop operators into nodes
-			nodes.add(new ExpressionOperator(operator, left, right));
-		}
-		//If there was no left parentheses (null) found on the stack,
-		if (operators.isEmpty()) {
-			throw new ParseError(token, "Expected ) not " + token);
+			//Pop operator into nodes
+			nodes.add(new ExpressionOperator(operator, nodes.poll(), nodes.poll()));
 		}
 		return new Expression(nodes.poll());
 	}

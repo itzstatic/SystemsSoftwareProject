@@ -68,8 +68,7 @@ public class Parser {
 						>= operator.getPrecedence()) {
 					nodes.add(new ExpressionOperator(operators.pop(), nodes.poll(), nodes.poll()));
 				}
-				//Output the read operator into the tree
-				nodes.add(new ExpressionOperator(operator, nodes.poll(), nodes.poll()));
+				operators.push(operator);
 			} else { //If the parser expects an operand
 				if (lexer.accept(Type.SYMBOL) != null) {
 					nodes.add(new ExpressionSymbol(token.asSymbol()));

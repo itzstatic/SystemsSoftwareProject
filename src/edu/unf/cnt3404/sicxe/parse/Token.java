@@ -1,5 +1,7 @@
 package edu.unf.cnt3404.sicxe.parse;
 
+import edu.unf.cnt3404.sicxe.syntax.Data;
+
 //Wraps a syntax element with its position in the source code
 public class Token {
 	
@@ -8,6 +10,8 @@ public class Token {
 	//Number tokens contain a boxed Integer;
 	//Symbol and comment tokens contain a String;
 	//Simple tokens contain a boxed Character;
+	//Data tokens contain a Data object;
+	//Whitespace tokens contain a null pointer;
 	private Type type;
 	private int row;
 	private int col;
@@ -30,8 +34,14 @@ public class Token {
 	public static Token comment(int row, int col, String comment) {
 		return new Token(row, col, Type.COMMENT, comment);
 	}
+	public static Token data(int row, int col, Data data) {
+		return new Token(row, col, Type.DATA, data);
+	}
 	public static Token simple(int row, int col, char c) {
 		return new Token(row, col, Type.SIMPLE, c);
+	}
+	public static Token whitespace(int row, int col) {
+		return new Token(row, col, Type.WHITESPACE, null);
 	}
 	
 	public int getRow() {
@@ -43,7 +53,8 @@ public class Token {
 	public Type getType() {
 		return type;
 	}
-	
+	//as... methods not save to use until the caller has verified this token's Type
+	//because these might throw casting exceptions
 	public int asNumber() {
 		return ((Integer)value).intValue();
 	}
@@ -53,9 +64,25 @@ public class Token {
 	public String asComment() {
 		return (String) value;
 	}
+	public Data asData() {
+		return (Data) value;
+	}
 	
 	public boolean is(char c) {
 		return ((Character)value).charValue() == c;
+	}
+	
+	@Override
+	public String toString() {
+		switch(type) {
+		case NUMBER: return Integer.toString(asNumber());
+		case SYMBOL: return asSymbol();
+		case COMMENT: return asComment();
+		case DATA: return asData().toString();
+		case SIMPLE: return Character.toString((Character)value);
+		case WHITESPACE: return "whitespace";
+		default: throw new IllegalStateException(type.toString());
+		}
 	}
 	
 	public enum Type {
@@ -64,5 +91,6 @@ public class Token {
 		COMMENT,
 		DATA, //X'...' or C'...'
 		SIMPLE, //A simple token is one character
+		WHITESPACE,
 	}
 }

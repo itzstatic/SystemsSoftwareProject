@@ -5,12 +5,12 @@ import java.util.List;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 
 //Represents a constant numerical value expression
-public class ExpressionConstant implements ExpressionNode {
+public class ExpressionNumber implements ExpressionNode {
 
 	private int value;
 	
 	//Creates an expression with the given value
-	public ExpressionConstant(int value) {
+	public ExpressionNumber(int value) {
 		this.value = value;
 	}
 	

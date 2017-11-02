@@ -64,9 +64,20 @@ public class ExpressionOperator implements ExpressionNode {
 	}
 	
 	public static enum Type {
-		ADD,
-		SUB,
-		MUL,
-		DIV
+		ADD(0),
+		SUB(0),
+		MUL(1),
+		DIV(1);
+		
+		//Higher integer means higher precedence: Do it first
+		private int precedence;
+	
+		private Type(int precedence) {
+			this.precedence = precedence;
+		}
+		
+		public int getPrecedence() {
+			return precedence;
+		}
 	}
 }

@@ -58,6 +58,17 @@ public class Parser {
 					operator = ExpressionOperator.Type.MUL;
 				} else if (lexer.accept('/')) {
 					operator = ExpressionOperator.Type.DIV;
+				} else if (lexer.accept(')')) {
+					//Pop while the operator is not a parentheses (null)
+					while (!operators.isEmpty() && operators.peek() != null) {
+						nodes.add(new ExpressionOperator(operators.pop(), nodes.poll(), nodes.poll()));
+					}
+					//Therefore, peek() never returned null, and there was no opening parentheses
+					if (operators.isEmpty()) {
+						throw new ParseError(token, "Did not expect )");
+					}
+					continue; //<-- This is so bad; this is because no operator was read
+					//in this branch 
 				} else {
 					throw new ParseError(token, "Expected operator not " + token);
 				}
@@ -76,6 +87,8 @@ public class Parser {
 					nodes.add(new ExpressionNumber(token.asNumber()));
 				} else if (lexer.accept('*')) {
 					nodes.add(new ExpressionStar());
+				} else if (lexer.accept('(')) {
+					operators.push(null);
 				} else {
 					throw new ParseError(token, "Expected operand not " + token);
 				}
@@ -87,7 +100,7 @@ public class Parser {
 			ExpressionOperator.Type operator = operators.pop();
 			//If a parentheses was found on the stack
 			if (operator == null) {
-				throw new ParseError(token, "Did not expect (");
+				throw new ParseError(token, "Expected ) not " + token);
 			}
 			//Ensure left is the first dequeue
 			//Pop operator into nodes

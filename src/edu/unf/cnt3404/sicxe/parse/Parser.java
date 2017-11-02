@@ -2,10 +2,8 @@ package edu.unf.cnt3404.sicxe.parse;
 
 import java.io.BufferedReader;
 import java.util.ArrayDeque;
-import java.util.Queue;
 import java.util.Stack;
 
-import edu.unf.cnt3404.sicxe.parse.Token.Type;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNode;
@@ -35,7 +33,7 @@ public class Parser {
 	//is reached. Implements Dijkstra's Shunting-Yard Algorithm to turn an infix
 	//arithmetic expression into a syntax tree
 	private Expression parseExpression() {
-		Queue<ExpressionNode> nodes = new ArrayDeque<>();
+		Stack<ExpressionNode> nodes = new Stack<>();
 		//Null element in operators indicates parentheses
 		Stack<ExpressionOperator.Type> operators = new Stack<>();
 		Token token;
@@ -43,8 +41,8 @@ public class Parser {
 		//multiplication operator versus as a location counter operand.
 		boolean expectsOperator = false; //Initially expect a value
 		//While there are tokens to be read
-		while ((token = lexer.peek()).getType() != Type.COMMENT && !token.is('\n')) {
-			if (lexer.accept(Type.WHITESPACE) != null) {
+		while ((token = lexer.peek()).getType() != Token.Type.COMMENT && !token.is('\n')) {
+			if (lexer.accept(Token.Type.WHITESPACE) != null) {
 				continue;
 			}
 			if (expectsOperator) {
@@ -61,14 +59,20 @@ public class Parser {
 				} else if (lexer.accept(')')) {
 					//Pop while the operator is not a parentheses (null)
 					while (!operators.isEmpty() && operators.peek() != null) {
-						nodes.add(new ExpressionOperator(operators.pop(), nodes.poll(), nodes.poll()));
+						//nodes stack reverses order of the nodes, so right pops off first
+						ExpressionNode right = nodes.pop();
+						ExpressionNode left = nodes.pop();
+						nodes.add(new ExpressionOperator(operators.pop(), left, right));
 					}
-					//Therefore, peek() never returned null, and there was no opening parentheses
 					if (operators.isEmpty()) {
+						//Therefore, peek() never returned null, and there was no opening parentheses
 						throw new ParseError(token, "Did not expect )");
 					}
+					//Otherwise, peek() returned null, so pop it
+					operators.pop();
 					continue; //<-- This is so bad; this is because no operator was read
-					//in this branch 
+					//in this branch, so 1) I cannot push an operator onto the stack, and
+					//2) I should not toggle expectsOperator
 				} else {
 					throw new ParseError(token, "Expected operator not " + token);
 				}
@@ -77,18 +81,21 @@ public class Parser {
 				//Wikipedia did not seem to say what to do, or if this scenario is possible.
 				while (!operators.isEmpty() && operators.peek() != null && 
 						operators.peek().getPrecedence() >= operator.getPrecedence()) {
-					nodes.add(new ExpressionOperator(operators.pop(), nodes.poll(), nodes.poll()));
+					ExpressionNode right = nodes.pop();
+					ExpressionNode left = nodes.pop();
+					nodes.add(new ExpressionOperator(operators.pop(), left, right));
 				}
 				operators.push(operator);
 			} else { //If the parser expects an operand
-				if (lexer.accept(Type.SYMBOL) != null) {
+				if (lexer.accept(Token.Type.SYMBOL) != null) {
 					nodes.add(new ExpressionSymbol(token.asSymbol()));
-				} else if (lexer.accept(Type.NUMBER) != null) {
+				} else if (lexer.accept(Token.Type.NUMBER) != null) {
 					nodes.add(new ExpressionNumber(token.asNumber()));
 				} else if (lexer.accept('*')) {
 					nodes.add(new ExpressionStar());
 				} else if (lexer.accept('(')) {
 					operators.push(null);
+					continue; //Continue so that I do not toggle expectsOperator
 				} else {
 					throw new ParseError(token, "Expected operand not " + token);
 				}
@@ -104,8 +111,11 @@ public class Parser {
 			}
 			//Ensure left is the first dequeue
 			//Pop operator into nodes
-			nodes.add(new ExpressionOperator(operator, nodes.poll(), nodes.poll()));
+			//nodes stack reverses order of the nodes, so right pops off first
+			ExpressionNode right = nodes.pop();
+			ExpressionNode left = nodes.pop();
+			nodes.add(new ExpressionOperator(operator, left, right));
 		}
-		return new Expression(nodes.poll());
+		return new Expression(nodes.pop());
 	}
 }

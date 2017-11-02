@@ -1,7 +1,6 @@
 package edu.unf.cnt3404.sicxe.parse;
 
 import java.io.BufferedReader;
-import java.util.ArrayDeque;
 import java.util.Stack;
 
 import edu.unf.cnt3404.sicxe.syntax.Command;

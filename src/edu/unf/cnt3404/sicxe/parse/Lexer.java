@@ -1,8 +1,5 @@
 package edu.unf.cnt3404.sicxe.parse;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-
 import edu.unf.cnt3404.sicxe.parse.Token.Type;
 import edu.unf.cnt3404.sicxe.syntax.Data;
 import edu.unf.cnt3404.sicxe.syntax.data.AsciiData;
@@ -11,20 +8,17 @@ import edu.unf.cnt3404.sicxe.syntax.data.HexData;
 //Reads many characters at a time and creates tokens
 public class Lexer {
 	
-	private static final char EOS = (char)-1;
-	private static final String SIMPLECHARACTERS = "#@,+-*/()";
+	private static final String SIMPLE_CHARACTERS = "#@,+-*/()";
 	
-	private BufferedReader reader;
-	private int row = 1;
-	private int col = 1;
+	private Scanner scanner;
 	
 	//Creates a lexer from a buffered reader. The reader can be from a file
 	//Or from the standard in, etc.
-	public Lexer(BufferedReader reader) {
-		this.reader = reader;
+	public Lexer(Scanner scanner) {
+		this.scanner = scanner;
 	}
 
-	private boolean isLineSperator(char c) {
+	private boolean isLineSeparator(char c) {
 		return c == '\n' || c == '\r';
 	}
 	
@@ -37,31 +31,7 @@ public class Lexer {
 	}
 	
 	private boolean isSimple(char c) {
-		return SIMPLECHARACTERS.contains(Character.toString(c));
-	}
-	
-	private char read() {
-		try {
-			col++;
-			reader.mark(1);
-			return (char)reader.read();
-		} catch (IOException e) {
-			e.printStackTrace();
-			return EOS;
-		}
-	}
-	
-	private char readUpper() {
-		return Character.toUpperCase(read());
-	}
-	
-	private void unread() {
-			col--;
-			try {
-				reader.reset();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+		return SIMPLE_CHARACTERS.contains(Character.toString(c));
 	}
 	
 	//Gets the next token and consumes it.
@@ -69,18 +39,19 @@ public class Lexer {
 	//Never returns null
 	public Token next() {
 		char c;
-		if ((c = readUpper()) == EOS) {
+		int row = scanner.getRow();
+		int col = scanner.getCol();
+		if ((c = Character.toUpperCase(scanner.next())) == Scanner.EOS) {
 			throw new ParseError(row, col, "Expected token not end of stream");	
 		}
 		if (isWhitespace(c)) {
-			int row = this.row;
-			int col = this.col;
 			//Many sequential whitespace chars will yield a single whitespace token
-			while (isWhitespace(c = read())); //Read
-			unread();
+			while (isWhitespace(c = scanner.peek())) {
+				scanner.next();
+			}
 			return Token.whitespace(row, col);
 		}
-		if (isLineSperator(c)) {
+		if (isLineSeparator(c)) {
 			Token result = Token.newline(row, col);
 			row++;
 			col = 1;
@@ -90,11 +61,12 @@ public class Lexer {
 			StringBuilder number = new StringBuilder();
 			number.append(c);
 			//read all digits
-			while (Character.isDigit(c = readUpper()) && c != EOS) {
+			while (Character.isDigit(c = Character.toUpperCase(scanner.peek())) 
+				&& c != Scanner.EOS) {
+				scanner.next();
 				number.append(c);
 			}
 			//c is the first non-digit
-			unread(); //Returns the 1 char back to the buffer
 			//All characters of number satisfied isDigit, so parseInt should
 			//never throw an exception
 			return Token.number(row, col, Integer.parseInt(number.toString()));
@@ -103,24 +75,25 @@ public class Lexer {
 			StringBuilder comment = new StringBuilder();
 			comment.append(c);
 			//read until the next line
-			while (!isLineSperator(c = readUpper()) && c != EOS) {
+			while (!isLineSeparator(c = Character.toUpperCase(scanner.peek())) 
+				&& c != Scanner.EOS) {
+				scanner.next();
 				comment.append(c);
 			}
-			unread();
 			return Token.comment(row, col, comment.toString());
 		}
 		if (Character.isLetter(c)) {
 			StringBuilder string = new StringBuilder();
-			if (read() == '\'') {
+			if (scanner.peek() == '\'') {
 				//A data instead
 				boolean isAscii = c == 'C'; //Otherwise, is hex
 				//Read until the next quote
-				//Don't read upper
-				while ((c = read()) != '\'' && c != EOS) {
+				//Don't upper case
+				while ((c = scanner.next()) != '\'' && c != Scanner.EOS) {
 					string.append(c);
 				}
 				//c was not a quote
-				if (c == EOS) {
+				if (c == Scanner.EOS) {
 					throw new ParseError(row, col, "Expected ' not end of stream");
 				}
 				//Create the data object
@@ -132,12 +105,12 @@ public class Lexer {
 				}
 				return Token.data(row, col, data);
 			}
-			unread();
 			string.append(c);
-			while ((Character.isLetter(c = readUpper()) || Character.isDigit(c)) && c != EOS) {
+			while ((Character.isLetter(c = Character.toUpperCase(scanner.peek())) 
+				|| Character.isDigit(c)) && c != Scanner.EOS) {
+				scanner.next();
 				string.append(c);
 			}
-			unread();
 			return Token.symbol(row, col, string.toString());
 		}
 		if (isDataInitializer(c)) {

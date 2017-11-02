@@ -26,10 +26,6 @@ public class Lexer {
 		return c == '\t' || c == ' ';
 	}
 	
-	private boolean isDataInitializer(char c) {
-		return c == 'C' || c == 'X';
-	}
-	
 	private boolean isSimple(char c) {
 		return SIMPLE_CHARACTERS.contains(Character.toString(c));
 	}
@@ -112,10 +108,6 @@ public class Lexer {
 				string.append(c);
 			}
 			return Token.symbol(row, col, string.toString());
-		}
-		if (isDataInitializer(c)) {
-			System.out.println("If data");
-			
 		}
 		if(isSimple(c)) {
 			return Token.simple(row, col, c);

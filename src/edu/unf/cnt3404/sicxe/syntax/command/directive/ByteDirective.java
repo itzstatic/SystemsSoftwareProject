@@ -24,4 +24,14 @@ public class ByteDirective extends AbstractCommand implements WriteableCommand {
 		}
 	}
 
+	@Override
+	public String getName() {
+		return "BYTE";
+	}
+
+	@Override
+	public String getArgument() {
+		return data.toString();
+	}
+
 }

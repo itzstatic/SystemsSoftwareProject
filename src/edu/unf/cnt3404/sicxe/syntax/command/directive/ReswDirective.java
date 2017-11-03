@@ -19,4 +19,14 @@ public class ReswDirective extends AbstractCommand {
 	public String toString() {
 		return "RESW " + numWords;
 	}
+
+	@Override
+	public String getName() {
+		return "RESW";
+	}
+
+	@Override
+	public String getArgument() {
+		return Integer.toString(numWords);
+	}
 }

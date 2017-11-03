@@ -14,12 +14,13 @@ public class Program {
 	//The contents of the base register, or, an integer less than 0 if
 	//base is disabled
 	private int base;
-	
 	private int locctr;
+	
 	private List<String> definitions = new ArrayList<>();
 	private List<String> references = new ArrayList<>();
 	
 	private Map<String, Symbol> symtab = new HashMap<>();
+	
 	//Start directive methods
 	public void setName(String name) {
 		this.name = name;
@@ -33,6 +34,7 @@ public class Program {
 	public int getStart() {
 		return start;
 	}
+	//End directive methods
 	public void setFirst(int first) {
 		this.first = first;
 	}
@@ -62,19 +64,28 @@ public class Program {
 	public boolean isBaseEnabled() {
 		return base >= 0;
 	}
-	//External related methods
+	//External definition methods
 	public void addExternalDefintion(String def) {
 		definitions.add(def);
 	}
+	public List<Symbol> getExternalDefinitions() {
+		List<Symbol> result = new ArrayList<>();
+		for (String def : definitions) {
+			result.add(getSymbol(def));
+		}
+		return result;
+	}
+	//External reference methods
 	public void addExternalReference(String ref) {
+		symtab.put(ref, new Symbol(ref));
 		references.add(ref);
 	}
-	//Symtab methods
-	public void putLocal(String symbol, int value, boolean absolute) {
-		symtab.put(symbol, new Symbol(symbol, value, absolute));
+	public List<String> getExternalReferences() {
+		return references;
 	}
-	public void putExternal(String symbol) {
-		symtab.put(symbol, new Symbol(symbol));
+	//Symtab methods
+	public void put(String symbol, int value, boolean absolute) {
+		symtab.put(symbol, new Symbol(symbol, value, absolute));
 	}
 	public Symbol getSymbol(String symbol) {
 		return symtab.get(symbol);

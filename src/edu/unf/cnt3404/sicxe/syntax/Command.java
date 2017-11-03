@@ -23,4 +23,11 @@ public interface Command {
 	//Gets the line number for this command, or a negative number if this 
 	//command was not in the source
 	int getLine();
+	
+	//Listing file methods
+	//Returns a string containing a mnemonic name
+	String getName();
+	//Returns a string containing arguments (to the right of name)
+	//Or null if there are no arguments
+	String getArgument();
 }

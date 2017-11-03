@@ -2,12 +2,10 @@ package edu.unf.cnt3404.sicxe.syntax.command.instruction;
 
 import edu.unf.cnt3404.sicxe.global.Mnemonic;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
-import edu.unf.cnt3404.sicxe.syntax.command.AbstractCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.ModifiableCommand;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNumber;
 
-public class Format34Instruction extends AbstractCommand implements
-		ModifiableCommand {
+public class Format34Instruction extends Instruction implements ModifiableCommand {
 
 	//Provided by constructor at parse-time
 	private boolean extended;
@@ -21,6 +19,7 @@ public class Format34Instruction extends AbstractCommand implements
 	private AddressMode address;
 	
 	//Format34M
+	//If indexed, then TargetMode must be Simple
 	public Format34Instruction(boolean extended, Mnemonic mnemonic, 
 		TargetMode target, Expression expr, boolean indexed) {
 		this.extended = extended;
@@ -83,19 +82,28 @@ public class Format34Instruction extends AbstractCommand implements
 	public int getStride() {
 		return 5; //5-half-bytes of format-4 address
 	}
+	
+	@Override
+	public String getName() {
+		if (extended) {
+			return "+" + mnemonic.getName();
+		} else {
+			return " " + mnemonic.getName();
+		}
+	}
 
 	@Override
-	public String toString() {
+	public String getArgument() {
 		StringBuilder result = new StringBuilder();
-		if (extended) result.append('+');
-		result.append(mnemonic.getName());
-		result.append(' ');
 		switch(target) {
 		case IMMEDIATE: result.append('#'); break;
 		case INDIRECT: result.append('@'); break;
-		default:
+		default: result.append(' '); break;
 		}
 		result.append(expr);
+		if (indexed) {
+			result.append(",X");
+		}
 		return result.toString();
 	}
 }

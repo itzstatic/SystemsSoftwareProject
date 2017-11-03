@@ -1,5 +1,6 @@
 package edu.unf.cnt3404.sicxe;
 
+import edu.unf.cnt3404.sicxe.global.Global;
 import edu.unf.cnt3404.sicxe.parse.ParseError;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.BaseDirective;
@@ -9,6 +10,7 @@ import edu.unf.cnt3404.sicxe.syntax.command.directive.OrgDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.StartDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.WordDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.AddressMode;
+import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format2Instruction;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format34Instruction;
 
 //Performs pass two by assembling various commands.
@@ -17,6 +19,31 @@ public class Assembler {
 	
 	public Assembler(Program program) {
 		this.program = program;
+	}
+	
+	public void assemble(Format2Instruction c) {
+		String r1 = c.getRegisterOne();
+		String r2 = c.getRegisterTwo();
+		byte n = c.getNumber();
+		
+		Byte b1 = null;
+		if (r1 != null) {
+			b1 = Global.REGISTERS.get(r1);
+		}
+		Byte b2 = null;
+		if (r2 != null) {
+			b2 = Global.REGISTERS.get(r2);
+		}
+		
+		if (r1 == null && r2 == null) {
+			c.setArgument(n); 								//Format2N
+		} else if (r1 == null && r2 != null) {
+			c.setArgument(b2.byteValue(), (byte)(n - 1)); 	//Format2RN
+		} else if (r1 != null && r2 == null) {
+			c.setArgument(b1.byteValue()); 					//Format2R
+		} else { //r1 != null && r2 != null
+			c.setArgument(b1.byteValue(), b2.byteValue()); 	//Format2RR
+		}
 	}
 	
 	public void assemble(Format34Instruction c) {

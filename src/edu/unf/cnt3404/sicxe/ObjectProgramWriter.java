@@ -38,11 +38,7 @@ public class ObjectProgramWriter {
 		
 	}
 	
-	public void writeModificationRecords() {
-		
-	}
-	
-	public void writeEndRecord() {
+	public void writeModificationAndEndRecords() {
 		out.print('E');
 		out.printf("%6X", program.getFirst());
 		out.println();

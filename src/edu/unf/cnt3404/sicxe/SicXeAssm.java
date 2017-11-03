@@ -20,12 +20,14 @@ import edu.unf.cnt3404.sicxe.syntax.command.directive.NoBaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.OrgDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.StartDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.WordDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format2Instruction;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format34Instruction;
 
 //Salim, Brandon Mathis, Brandon Mack
 public class SicXeAssm {
 	
 	private Parser parser;
+	private Alignment align = new Alignment();
 	private Program program = new Program();
 	private List<Command> commands = new ArrayList<>();
 	
@@ -37,8 +39,11 @@ public class SicXeAssm {
 	public void passOne() {
 		Command c;
 		while ((c = parser.next()) != null) {
+			align.update(c);
 			//Add symbols to symtab (An Equ directive would map symbol to expr value)
-			program.putLocal(c.getLabel(), program.getLocationCounter(), false);
+			if (c.getLabel() != null) {
+				program.put(c.getLabel(), program.getLocationCounter(), false);
+			}
 			//Increment locctr by size
 			program.incrementLocationCounter(c.getSize());
 		}
@@ -48,6 +53,7 @@ public class SicXeAssm {
 	//Create all object records
 	public void passTwo(PrintWriter lst, PrintWriter obj) {
 		Assembler assembler = new Assembler(program);
+		ListingProgramWriter listing = new ListingProgramWriter(program, align, lst);
 		ObjectProgramWriter object = new ObjectProgramWriter(program, obj);
 		
 		//Reset location counter
@@ -62,16 +68,18 @@ public class SicXeAssm {
 			if (c instanceof NoBaseDirective) assembler.assemble((NoBaseDirective)c);
 			if (c instanceof OrgDirective) assembler.assemble((OrgDirective)c);
 			if (c instanceof WordDirective) assembler.assemble((WordDirective)c);
-			if (c instanceof Format34Instruction)assembler.assemble((Format34Instruction)c);
 			
+			if (c instanceof Format2Instruction) assembler.assemble((Format2Instruction)c);
+			if (c instanceof Format34Instruction) assembler.assemble((Format34Instruction)c);
+			
+			listing.write(c);
 			
 			if (c instanceof WriteableCommand) object.write((WriteableCommand)c);
 			if (c instanceof ModifiableCommand) object.modify((ModifiableCommand)c);
 			program.incrementLocationCounter(c.getSize());
 		}
 		
-		object.writeModificationRecords();
-		object.writeEndRecord();
+		object.writeModificationAndEndRecords();
 	}
 
 	

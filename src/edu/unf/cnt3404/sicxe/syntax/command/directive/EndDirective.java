@@ -36,4 +36,17 @@ public class EndDirective extends AbstractCommand implements ExpressionCommand {
 		} 
 		return "END " + first;
 	}
+
+	@Override
+	public String getName() {
+		return "END";
+	}
+
+	@Override
+	public String getArgument() {
+		if (first == null) {
+			return null;
+		}
+		return first.toString();
+	}
 }

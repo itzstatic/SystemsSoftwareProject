@@ -8,4 +8,16 @@ public interface WriteableCommand extends Command {
 	//Writes object code to the buffer starting at pos.
 	//This command should only modify the number of bytes according to getSize
 	void write(byte[] buffer, int pos);
+	
+	//For the listing file
+	default String getHexObjectCode() {
+		byte[] buffer = new byte[getSize()];
+		write(buffer, 0);
+		StringBuilder result = new StringBuilder();
+		for (byte b : buffer) {
+			//toHexString will put minimum number of characters in
+			result.append(Integer.toHexString(b));
+		}
+		return result.toString();
+	}
 }

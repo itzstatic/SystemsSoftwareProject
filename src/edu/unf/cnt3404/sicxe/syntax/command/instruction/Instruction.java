@@ -8,6 +8,10 @@ public abstract class Instruction extends AbstractCommand implements WriteableCo
 
 	protected Mnemonic mnemonic;
 	
+	public Instruction(Mnemonic mnemonic) {
+		this.mnemonic = mnemonic;
+	}
+	
 	@Override
 	public String getName() {
 		return mnemonic.getName();

@@ -17,26 +17,26 @@ public class Format2Instruction extends Instruction {
 	
 	//Constructs a Format2R instruction, where r is a register
 	public Format2Instruction(Mnemonic mnemonic, String r) {
-		this.mnemonic = mnemonic;
+		super(mnemonic);
 		r1 = r;
 	}
 	
 	//Constructs a Format2N instruction, where n is 0 to 15, inclusive
 	public Format2Instruction(Mnemonic mnemonic, byte n) {
-		this.mnemonic = mnemonic;
+		super(mnemonic);
 		this.n = n;
 	}
 	
 	//Constructs a Format2RR instruction, where r1 and r2 are each registers
 	public Format2Instruction(Mnemonic mnemonic, String r1, String r2) {
-		this.mnemonic = mnemonic;
+		super(mnemonic);
 		this.r1 = r1;
 		this.r2 = r2;
 	}
 	
 	//Constructs a Format2RN instruction, where n is 1 to 16, inclusive
 	public Format2Instruction(Mnemonic mnemonic, String r, byte n) {
-		this.mnemonic = mnemonic;
+		super(mnemonic);
 		r2 = r;
 		this.n = n;
 	}

@@ -6,7 +6,7 @@ import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
 public class Format1Instruction extends Instruction implements WriteableCommand {
 
 	public Format1Instruction(Mnemonic mnemonic) {
-		this.mnemonic = mnemonic;
+		super(mnemonic);
 	}
 	
 	@Override

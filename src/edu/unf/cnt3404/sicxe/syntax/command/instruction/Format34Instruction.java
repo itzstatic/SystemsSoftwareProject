@@ -9,7 +9,6 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 
 	//Provided by constructor at parse-time
 	private boolean extended;
-	private Mnemonic mnemonic;
 	private TargetMode target;
 	private Expression expr;
 	private boolean indexed;
@@ -22,8 +21,8 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 	//If indexed, then TargetMode must be Simple
 	public Format34Instruction(boolean extended, Mnemonic mnemonic, 
 		TargetMode target, Expression expr, boolean indexed) {
+		super(mnemonic);
 		this.extended = extended;
-		this.mnemonic = mnemonic;
 		this.target = target;
 		this.expr = expr;
 		this.indexed = indexed;
@@ -85,11 +84,7 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 	
 	@Override
 	public String getName() {
-		if (extended) {
-			return "+" + mnemonic.getName();
-		} else {
-			return " " + mnemonic.getName();
-		}
+		return (extended ? '+' : ' ') + mnemonic.getName();
 	}
 
 	@Override

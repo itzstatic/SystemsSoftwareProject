@@ -42,6 +42,7 @@ public class EndDirective extends AbstractCommand implements ExpressionCommand {
 		return "END";
 	}
 
+	//The only expression command that might contain a null expression
 	@Override
 	public String getArgument() {
 		if (first == null) {

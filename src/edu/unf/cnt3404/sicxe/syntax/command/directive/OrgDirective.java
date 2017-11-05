@@ -26,10 +26,4 @@ public class OrgDirective extends AbstractCommand implements ExpressionCommand {
 	public String getName() {
 		return "ORG";
 	}
-
-	@Override
-	public String getArgument() {
-		return expr.toString();
-	}
-
 }

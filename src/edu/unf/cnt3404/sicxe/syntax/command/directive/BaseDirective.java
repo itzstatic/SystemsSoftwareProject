@@ -31,10 +31,4 @@ public class BaseDirective extends AbstractCommand implements ExpressionCommand 
 	public String getName() {
 		return "BASE";
 	}
-
-	@Override
-	public String getArgument() {
-		return null;
-	}
-
 }

@@ -1,0 +1,3 @@
+first	stl		(retadr-3) + 2
+		ldb		#length
+cloop	+jsub	rdrec

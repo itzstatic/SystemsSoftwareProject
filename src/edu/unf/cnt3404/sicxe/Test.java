@@ -7,10 +7,16 @@ import java.io.FileReader;
 import edu.unf.cnt3404.sicxe.parse.Lexer;
 import edu.unf.cnt3404.sicxe.parse.Parser;
 import edu.unf.cnt3404.sicxe.parse.Scanner;
-import edu.unf.cnt3404.sicxe.syntax.Expression;
+import edu.unf.cnt3404.sicxe.syntax.Command;
 
 public class Test {
 	public static void main(String[] args) throws FileNotFoundException {
-		System.out.println(Integer.toHexString(255));
+		Parser p = new Parser(new Lexer(new Scanner(
+				new BufferedReader(new FileReader("test.txt")))));
+		
+		Command c;
+		while ((c = p.next()) != null) {
+			System.out.println(c.getLabel() + " " + c.getName() + " " + c.getArgument());
+		}
 	}
 }

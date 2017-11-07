@@ -1,5 +1,7 @@
 package edu.unf.cnt3404.sicxe.parse;
 
+import edu.unf.cnt3404.sicxe.global.Global;
+import edu.unf.cnt3404.sicxe.global.Mnemonic;
 import edu.unf.cnt3404.sicxe.parse.Token.Type;
 import edu.unf.cnt3404.sicxe.syntax.Data;
 import edu.unf.cnt3404.sicxe.syntax.data.AsciiData;
@@ -22,6 +24,14 @@ public class Lexer {
 		this.scanner = scanner;
 	}
 
+	public int getRow() {
+		return scanner.getRow();
+	}
+	
+	public int getCol() {
+		return scanner.getCol();
+	}
+	
 	private boolean isLineSeparator(char c) {
 		return c == '\n' || c == '\r';
 	}
@@ -118,6 +128,14 @@ public class Lexer {
 				scanner.next();
 				string.append(c);
 			}
+			String s = string.toString();
+			
+			//Check if the string is a mnemonic
+			Mnemonic mnemonic = Global.OPTAB.get(s);
+			if (mnemonic != null) {
+				return Token.mnemonic(row, col, mnemonic);
+			}
+			
 			return Token.symbol(row, col, string.toString());
 		}
 		if(isSimple(c)) {

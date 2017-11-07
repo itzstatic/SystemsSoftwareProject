@@ -1,5 +1,6 @@
 package edu.unf.cnt3404.sicxe.parse;
 
+import edu.unf.cnt3404.sicxe.global.Mnemonic;
 import edu.unf.cnt3404.sicxe.syntax.Data;
 
 //Wraps a syntax element with its position in the source code
@@ -13,6 +14,7 @@ public class Token {
 	//Data tokens contain a Data object;
 	//Whitespace tokens contain a null pointer;
 	//Newline tokens contain a null pointer;
+	//Mnemonic tokens contain a Mnemonic object;
 	private Type type;
 	private int row;
 	private int col;
@@ -37,6 +39,9 @@ public class Token {
 	}
 	public static Token data(int row, int col, Data data) {
 		return new Token(row, col, Type.DATA, data);
+	}
+	public static Token mnemonic(int row, int col, Mnemonic mnemonic) {
+		return new Token(row, col, Type.MNEMONIC, mnemonic);
 	}
 	public static Token simple(int row, int col, char c) {
 		return new Token(row, col, Type.SIMPLE, c);
@@ -68,6 +73,9 @@ public class Token {
 	public Data asData() {
 		return (Data) value;
 	}
+	public Mnemonic asMnemonic() {
+		return (Mnemonic) value;
+	}
 	
 	public boolean is(char c) {
 		return ((Character)value).charValue() == c;
@@ -87,6 +95,7 @@ public class Token {
 		case SIMPLE: return Character.toString((Character)value);
 		case WHITESPACE: return "whitespace";
 		case NEWLINE: return "newline";
+		case MNEMONIC: return asMnemonic().getName();
 		default: throw new IllegalStateException(type.toString());
 		}
 	}
@@ -98,6 +107,7 @@ public class Token {
 		DATA, //X'...' or C'...'
 		SIMPLE, //A simple token is one character
 		WHITESPACE,
-		NEWLINE
+		NEWLINE, 
+		MNEMONIC
 	}
 }

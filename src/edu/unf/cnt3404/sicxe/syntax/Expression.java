@@ -16,8 +16,8 @@ public class Expression {
 		this.root = root;
 	}
 	
-	public int getValue(Program program) {
-		return root.getValue(program);
+	public int getValue(Command command, Program program) {
+		return root.getValue(command, program);
 	}
 	
 	//A degree 0 expression is absolute. 

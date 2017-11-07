@@ -41,11 +41,27 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 	}
 	
 	public void setArgument(int argument) {
-		this.argument = (short)argument;
+		//Mask so that a negative 12-bit disp will not overflow into xbpe
+		int mask;
+		if (extended) { 
+			//20 bit mask
+			mask = (1 << 20) - 1;
+		} else if (target == TargetMode.SIMPLE){ 
+			//15 bit mask
+			mask = (1 << 15) - 1;
+		} else { 
+			//12 bit mask
+			mask = (1 << 12) - 1;
+		}
+		this.argument = (short)(mask & argument);
 	}
 	
 	public boolean isExtended() {
 		return extended;
+	}
+	
+	public TargetMode getTargetMode() {
+		return target;
 	}
 	
 	@Override
@@ -63,13 +79,17 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 		buffer[pos] = (byte)(mnemonic.getOpcode() | target.getNiMask());
 		if (extended) {
 			buffer[pos + 1] = (byte)((argument >> 16));
-			buffer[pos + 2] = (byte)((argument >> 8));
+			buffer[pos + 2] = (byte)(argument >> 8);
 			buffer[pos + 3] = (byte)(argument);
 		} else {
 			buffer[pos + 1] = (byte)((argument >> 8));
 			buffer[pos + 2] = (byte)(argument);
 		}
 		buffer[pos + 1] |= address.getXbpeFlag(indexed, extended);
+		
+		if (getLine() == 10 ) {
+			System.out.println(Integer.toString(argument, 2));
+		}
 	}
 
 	@Override

@@ -51,7 +51,7 @@ public class SicXeAssm {
 			commands.add(c);
 			//Modify locctr by org expr
 			if (c instanceof OrgDirective) {
-				program.setLocationCounter(((OrgDirective) c).getExpression().getValue(program));
+				program.setLocationCounter(((OrgDirective) c).getExpression().getValue(c, program));
 			}
 			//Add symbols to symtab
 			if (c.getLabel() != null) {
@@ -69,7 +69,17 @@ public class SicXeAssm {
 	}
 	
 	public void debug() {
-		program.debug();
+		byte[] buffer;
+		for (Command c : commands) {
+			if (c instanceof WriteableCommand) {
+				buffer = new byte[c.getSize()];
+				((WriteableCommand) c).write(buffer, 0);
+				for (byte b : buffer) {
+					System.out.printf("%02X", b);
+				}
+				System.out.println();
+			}
+		}
 	}
 	
 	//Evaluate expressions

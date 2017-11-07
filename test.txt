@@ -2,17 +2,17 @@ copy	start	0
 first	stl		retadr
 		ldb		#length
 .		base	length
-cloop	+jsub	rdrec
+cloop	+jsub	length
 		lda		LENGTH
 		comp	#0
 		jeq			endfil
-			+jsub	wrrec
+			+jsub	length
 		j		cloop
 		endfil	lda		eof		   
 sta	buffer
 		lda	#3
 		sta	length
-		+jsub	wrrec
+		+jsub	length
 		J		@retADR
 eof		byte	c'EOF'
 retadr	resw	1

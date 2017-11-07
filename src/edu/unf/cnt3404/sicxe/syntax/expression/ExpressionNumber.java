@@ -2,6 +2,7 @@ package edu.unf.cnt3404.sicxe.syntax.expression;
 
 import java.util.List;
 
+import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 
 //Represents a constant numerical value expression
@@ -21,7 +22,7 @@ public class ExpressionNumber implements ExpressionNode {
 	}
 
 	@Override
-	public int getValue(Program program) {
+	public int getValue(Command command, Program program) {
 		return value;
 	}
 

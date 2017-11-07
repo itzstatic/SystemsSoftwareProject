@@ -2,6 +2,7 @@ package edu.unf.cnt3404.sicxe.syntax.expression;
 
 import java.util.List;
 
+import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 
 //Represents an operation in an expression. These are addition, subtraction,
@@ -34,9 +35,9 @@ public class ExpressionOperator implements ExpressionNode {
 	}
 	
 	@Override
-	public int getValue(Program program) {
-		int l = left.getValue(program);
-		int r = right.getValue(program);
+	public int getValue(Command command, Program program) {
+		int l = left.getValue(command, program);
+		int r = right.getValue(command, program);
 		switch(operator) {
 		case ADD: return l + r;
 		case SUB: return l - r;

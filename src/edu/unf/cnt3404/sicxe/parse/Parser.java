@@ -5,8 +5,15 @@ import java.util.Stack;
 import edu.unf.cnt3404.sicxe.global.Format;
 import edu.unf.cnt3404.sicxe.global.Mnemonic;
 import edu.unf.cnt3404.sicxe.syntax.Command;
+import edu.unf.cnt3404.sicxe.syntax.Data;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.command.Comment;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.ByteDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.ResbDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.ReswDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.StartDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.WordDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format1Instruction;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format2Instruction;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format34Instruction;
@@ -30,16 +37,11 @@ public class Parser {
 	//Returns the next command from the source, or, null if there
 	//are no commands left and the parsing is finished
 	public Command next() {
-		//Check for end
-		if (lexer.peek() == null) {
-			return null;
-		}
-		
 		//Advance to the beginning of the next useful token
 		while (lexer.accept(Token.Type.WHITESPACE) != null
 			|| lexer.accept(Token.Type.NEWLINE) != null);
 	
-		//Check for end again
+		//Check for end
 		if (lexer.peek() == null) {
 			return null;
 		}
@@ -68,25 +70,39 @@ public class Parser {
 			boolean extended = lexer.accept('+');
 			
 			//Get the mnemonic
-			Mnemonic mnemonic = lexer.expect(Token.Type.MNEMONIC).asMnemonic();
+			Mnemonic mnemonic = (token = lexer.expect(Token.Type.MNEMONIC)).asMnemonic();
 			
 			//Ensure that the source only extends a F34 mnemonic
 			//This implies someone can extend an RSUB (The only F34 mnemonic)
 			if (extended && mnemonic.getFormat() != Format.FORMAT34 
 				&& mnemonic.getFormat() != Format.FORMAT34M) {
-				throw new ParseError(token, "Cannot extend mnemonic " + token);
+				throw new AssembleError(token, "Cannot extend mnemonic " + token);
 			}
 			
 			//Parse the rest of it, which depends on the Mnemonic itself
-			switch(mnemonic.getFormat()) {
-			case FORMAT1: result = new Format1Instruction(mnemonic); break;
-			case FORMAT2N: result = parseFormat2NCommand(mnemonic); break;
-			case FORMAT2R: result = parseFormat2RCommand(mnemonic); break;
-			case FORMAT2RN: result = parseFormat2RNCommand(mnemonic); break;
-			case FORMAT2RR: result = parseFormat2RRCommand(mnemonic); break;
-			case FORMAT34: result = new Format34Instruction(extended, mnemonic); break;
-			case FORMAT34M: result = parseFormat34MCommand(extended, mnemonic); break;
-			default: throw new IllegalStateException(mnemonic.toString());
+			if (mnemonic.getFormat() == null) {
+				//Directive
+				switch(mnemonic.getName()) {
+				case "START": result = parseStartDirective(); break;
+				case "END": result = parseEndDirective(); break;
+				case "RESB": result = parseResbDirective(); break;
+				case "RESW": result = parseReswDirective(); break;
+				case "BYTE": result = parseByteDirective(); break;
+				case "WORD": result = parseWordDirective(); break;
+				default: throw new AssembleError(token, "Directive " + mnemonic.getName() + " not implemented");
+				}
+			} else {
+				//Instruction
+				switch(mnemonic.getFormat()) {
+				case FORMAT1: result = new Format1Instruction(mnemonic); break;
+				case FORMAT2N: result = parseFormat2NCommand(mnemonic); break;
+				case FORMAT2R: result = parseFormat2RCommand(mnemonic); break;
+				case FORMAT2RN: result = parseFormat2RNCommand(mnemonic); break;
+				case FORMAT2RR: result = parseFormat2RRCommand(mnemonic); break;
+				case FORMAT34: result = new Format34Instruction(extended, mnemonic); break;
+				case FORMAT34M: result = parseFormat34MCommand(extended, mnemonic); break;
+				default: throw new IllegalStateException(mnemonic.toString());
+				}
 			}
 			
 			result.setLabel(label);
@@ -105,7 +121,7 @@ public class Parser {
 		
 		//If there's not newline, but still a token, then complain!
 		if (lexer.accept(Token.Type.NEWLINE) == null && (token = lexer.peek()) != null) {
-			throw new ParseError(token, "Expected newline or end of stream not " + token);
+			throw new AssembleError(token, "Expected newline or end of stream not " + token);
 		}
 		result.setLine(line);
 		result.setComment(comment);
@@ -113,6 +129,8 @@ public class Parser {
 	}
 	
 	//Precondition: mnemonic.getFormat() == Format.FORMAT2N
+	//Post condition: do not consume the new line at the end of the command.
+	//that new line is consumed by next().
 	//Likewise for related parse methods
 	private Command parseFormat2NCommand(Mnemonic mnemonic) {
 		lexer.expect(Token.Type.WHITESPACE);
@@ -166,12 +184,51 @@ public class Parser {
 		if (lexer.accept(',')) {
 			Token x = lexer.expect(Token.Type.SYMBOL);
 			if (!x.asSymbol().equals("X")) {
-				throw new ParseError(x, "Expected X not " + x.asSymbol());
+				throw new AssembleError(x, "Expected X not " + x.asSymbol());
 			}
 			indexed = true;
 		}
 		
 		return new Format34Instruction(extended, mnemonic, target, expr, indexed);
+	}
+	
+	//Precondition: START mnemonic token was already consumed.
+	//Postcondition: Do not consume the new line at the end. That is consumed by next()
+	//Likewise for other parse...Directive methods
+	private Command parseStartDirective() {
+		lexer.expect(Token.Type.WHITESPACE);
+		int start = lexer.expect(Token.Type.NUMBER).asNumber();
+		return new StartDirective(start);
+	}
+	
+	private Command parseEndDirective() {
+		if (lexer.accept(Token.Type.WHITESPACE) != null) {
+			return new EndDirective(parseExpression());
+		}
+		return new EndDirective();
+	}
+	
+	private Command parseResbDirective() {
+		lexer.expect(Token.Type.WHITESPACE);
+		int bytes = lexer.expect(Token.Type.NUMBER).asNumber();
+		return new ResbDirective(bytes);
+	}
+	
+	private Command parseReswDirective() {
+		lexer.expect(Token.Type.WHITESPACE);
+		int words = lexer.expect(Token.Type.NUMBER).asNumber();
+		return new ReswDirective(words);
+	}
+	
+	private Command parseByteDirective() {
+		lexer.expect(Token.Type.WHITESPACE);
+		Data data = lexer.expect(Token.Type.DATA).asData();
+		return new ByteDirective(data);
+	}
+	
+	private Command parseWordDirective() {
+		lexer.expect(Token.Type.WHITESPACE);
+		return new WordDirective(parseExpression());
 	}
 	
 	//Attempts to parse an expression. Will stop parsing when the lexer reaches a newline
@@ -214,7 +271,7 @@ public class Parser {
 					}
 					if (operators.isEmpty()) {
 						//Therefore, peek() never returned null, and there was no opening parentheses
-						throw new ParseError(token, "Did not expect )");
+						throw new AssembleError(token, "Did not expect )");
 					}
 					//Otherwise, peek() returned null, so pop it
 					operators.pop();
@@ -258,7 +315,7 @@ public class Parser {
 			//If a parentheses was found on the stack
 			if (operator == null) {
 				//Token is always null at this point
-				throw new ParseError(token, "Unbalanced parentheses" + token);
+				throw new AssembleError(token, "Unbalanced parentheses" + token);
 			}
 			//Ensure left is the first dequeue
 			//Pop operator into nodes

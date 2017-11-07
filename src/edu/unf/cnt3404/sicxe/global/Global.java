@@ -10,13 +10,19 @@ public class Global {
 	public static final Map<String, Mnemonic> OPTAB = new HashMap<>();
 	public static final Map<String, Byte> REGISTERS = new HashMap<>();
 	
+	
 	//Convenience method so the caller does not have to write out the name twice, 
 	//or cast the opcode to byte
 	private static void putInstruction(String name, int opcode, Format format) {
 		OPTAB.put(name, new Mnemonic(name, (byte)opcode, format));
 	}
 	
-	//Convenience method so the caller does not have to write out the 
+	//Convenience method so the caller does not have to write out the name twice
+	private static void putDirective(String name) {
+		OPTAB.put(name, new Mnemonic(name, (byte)0, null));
+	}
+	
+	//Convenience method so the caller does not have to write out the name twice
 	private static void putRegister(String name, int code) {
 		REGISTERS.put(name, (byte)code);
 	}
@@ -85,6 +91,24 @@ public class Global {
 		putInstruction("SIO", 	0xF0, Format.FORMAT1);
 		putInstruction("HIO", 	0xF4, Format.FORMAT1);
 		putInstruction("TIO", 	0xF8, Format.FORMAT1);
+		
+		//Implemented directives
+		putDirective("START");
+		putDirective("END");
+		putDirective("BASE");
+		putDirective("NOBASE");
+		putDirective("RESB");
+		putDirective("RESW");
+		putDirective("BYTE");
+		putDirective("WORD");
+		putDirective("ORG");
+		putDirective("EXTREF");
+		putDirective("EXTDEF");
+		//Not implemented (Parser will recognize which are and aren't)
+		putDirective("LTORG");
+		putDirective("EQU");
+		putDirective("CSECT");
+		putDirective("USE");
 		
 		putRegister("A", 0);
 		putRegister("X", 1);

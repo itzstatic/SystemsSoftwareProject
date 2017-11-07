@@ -90,4 +90,10 @@ public class Program {
 	public Symbol getSymbol(String symbol) {
 		return symtab.get(symbol);
 	}
+	
+	public void debug() {
+		for (Symbol s : symtab.values()) {
+			System.out.println(s.getText() + " goes to " + Integer.toString(s.getValue(), 16));
+		}
+	}
 }

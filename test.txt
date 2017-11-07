@@ -1,4 +1,21 @@
-first	stl		(retadr-3) + 2 .This is a comment
-		ldb		#length.lol
-	.Super test
+copy	start	0
+first	stl		retadr
+		ldb		#length
+.		base	length
 cloop	+jsub	rdrec
+		lda		LENGTH
+		comp	#0
+		jeq			endfil
+			+jsub	wrrec
+		j		cloop
+		endfil	lda		eof		   
+sta	buffer
+		lda	#3
+		sta	length
+		+jsub	wrrec
+		J		@retADR
+eof		byte	c'EOF'
+retadr	resw	1
+length	resw	1
+buffer	resb	4096
+		end first

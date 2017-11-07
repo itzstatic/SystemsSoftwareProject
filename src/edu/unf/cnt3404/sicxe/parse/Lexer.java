@@ -59,7 +59,7 @@ public class Lexer {
 		int row = scanner.getRow();
 		int col = scanner.getCol();
 		if ((c = Character.toUpperCase(scanner.next())) == Scanner.EOS) {
-			throw new ParseError(row, col, "Expected token not end of stream");	
+			throw new AssembleError(row, col, "Expected token not end of stream");	
 		}
 		if (isWhitespace(c)) {
 			//Many sequential whitespace chars will yield a single whitespace token
@@ -102,6 +102,7 @@ public class Lexer {
 		if (Character.isLetter(c)) {
 			StringBuilder string = new StringBuilder();
 			if (scanner.peek() == '\'') {
+				scanner.next(); //Consume the open quote
 				//A data instead
 				boolean isAscii = c == 'C'; //Otherwise, is hex
 				//Read until the next quote
@@ -111,12 +112,15 @@ public class Lexer {
 				}
 				//c was not a quote
 				if (c == Scanner.EOS) {
-					throw new ParseError(row, col, "Expected ' not end of stream");
+					throw new AssembleError(row, col, "Expected ' not end of stream");
 				}
 				//Create the data object
 				Data data;
 				if (isAscii) {
 					data = new AsciiData(string.toString());
+				} else if (string.length() % 2 != 0) {
+					//Odd lengthed hex data
+					throw new AssembleError(row, col, "Hex data must be of even legnth");
 				} else {
 					data = new HexData(string.toString());
 				}
@@ -141,7 +145,7 @@ public class Lexer {
 		if(isSimple(c)) {
 			return Token.simple(row, col, c);
 		}
-		throw new ParseError(row, col, "Bad character " + c);
+		throw new AssembleError(row, col, "Bad character " + c);
 	}
 	
 	//Gets the next token but doesn't consume it
@@ -183,7 +187,7 @@ public class Lexer {
 	public void expect(char c) {
 		Token token = next();
 		if (!token.is(Type.SIMPLE) || !token.is(c)) {
-			throw new ParseError(token, "Expected " + c + " not " + token);
+			throw new AssembleError(token, "Expected " + c + " not " + token);
 		}
 	}
 	
@@ -192,7 +196,7 @@ public class Lexer {
 	public Token expect(Type type) {
 		Token result = next();
 		if (!result.is(type)) {
-			throw new ParseError(result, "Expected " + type + " not " + result);
+			throw new AssembleError(result, "Expected " + type + " not " + result);
 		}
 		return result;
 	}

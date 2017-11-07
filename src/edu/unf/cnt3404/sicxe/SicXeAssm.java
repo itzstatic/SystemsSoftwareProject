@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import edu.unf.cnt3404.sicxe.parse.Lexer;
+import edu.unf.cnt3404.sicxe.parse.AssembleError;
 import edu.unf.cnt3404.sicxe.parse.Parser;
 import edu.unf.cnt3404.sicxe.parse.Scanner;
 import edu.unf.cnt3404.sicxe.syntax.Command;
@@ -37,16 +38,38 @@ public class SicXeAssm {
 	
 	//Add labels to symtab
 	public void passOne() {
-		Command c;
-		while ((c = parser.next()) != null) {
+		Command c = parser.next();
+		if (c == null) {
+			return; //Empty program
+		}
+		if (!(c instanceof StartDirective)) {
+			throw new AssembleError(c, "Expected START Directive");
+		}
+		
+		 while (c != null && !(c instanceof EndDirective)) {
 			align.update(c);
-			//Add symbols to symtab (An Equ directive would map symbol to expr value)
+			commands.add(c);
+			//Modify locctr by org expr
+			if (c instanceof OrgDirective) {
+				program.setLocationCounter(((OrgDirective) c).getExpression().getValue(program));
+			}
+			//Add symbols to symtab
 			if (c.getLabel() != null) {
 				program.put(c.getLabel(), program.getLocationCounter(), false);
 			}
 			//Increment locctr by size
 			program.incrementLocationCounter(c.getSize());
+			c = parser.next();
 		}
+		
+		//Loop terminated without an end directive
+		if (c == null) {
+			throw new AssembleError("Expected END Directive");
+		}
+	}
+	
+	public void debug() {
+		program.debug();
 	}
 	
 	//Evaluate expressions
@@ -66,7 +89,6 @@ public class SicXeAssm {
 			if (c instanceof EndDirective) assembler.assemble((EndDirective)c);
 			if (c instanceof BaseDirective) assembler.assemble((BaseDirective)c);
 			if (c instanceof NoBaseDirective) assembler.assemble((NoBaseDirective)c);
-			if (c instanceof OrgDirective) assembler.assemble((OrgDirective)c);
 			if (c instanceof WordDirective) assembler.assemble((WordDirective)c);
 			
 			if (c instanceof Format2Instruction) assembler.assemble((Format2Instruction)c);

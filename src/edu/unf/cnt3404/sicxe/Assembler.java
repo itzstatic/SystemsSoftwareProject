@@ -1,7 +1,7 @@
 package edu.unf.cnt3404.sicxe;
 
 import edu.unf.cnt3404.sicxe.global.Global;
-import edu.unf.cnt3404.sicxe.parse.ParseError;
+import edu.unf.cnt3404.sicxe.parse.AssembleError;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.BaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
@@ -64,7 +64,7 @@ public class Assembler {
 			
 			//Ensure base is enabled
 			if (!program.isBaseEnabled()) {
-				throw new ParseError(c, "PC out of range and base disabled");
+				throw new AssembleError(c, "PC out of range and base disabled");
 			}
 			
 			//Try: Base relative
@@ -76,7 +76,7 @@ public class Assembler {
 				return;
 			}
 			
-			throw new ParseError(c, "Base out of range and not extended");
+			throw new AssembleError(c, "Base out of range and not extended");
 		}
 	}
 
@@ -99,10 +99,4 @@ public class Assembler {
 	public void assemble(NoBaseDirective c) {
 		program.disableBase();
 	}
-
-	public void assemble(OrgDirective c) {
-		program.setLocationCounter(c.getExpression().getValue(program));
-	}
-	
-	
 }

@@ -1,3 +1,4 @@
-first	stl		(retadr-3) + 2
-		ldb		#length
+first	stl		(retadr-3) + 2 .This is a comment
+		ldb		#length.lol
+	.Super test
 cloop	+jsub	rdrec

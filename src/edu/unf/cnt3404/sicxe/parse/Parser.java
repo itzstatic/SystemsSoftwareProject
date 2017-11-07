@@ -30,22 +30,32 @@ public class Parser {
 	//Returns the next command from the source, or, null if there
 	//are no commands left and the parsing is finished
 	public Command next() {
+		//Check for end
+		if (lexer.peek() == null) {
+			return null;
+		}
+		
 		//Advance to the beginning of the next useful token
 		while (lexer.accept(Token.Type.WHITESPACE) != null
 			|| lexer.accept(Token.Type.NEWLINE) != null);
 	
-		Command result;
+		//Check for end again
+		if (lexer.peek() == null) {
+			return null;
+		}
 		
-		//Then, get the line number
+		Command result;
+		//Then, get the line number and begin parsing
 		int line = lexer.getRow();
+		String comment = null;
 		
 		//Comment only on this line
 		Token token = lexer.accept(Token.Type.COMMENT);
 		if (token != null) {
 			result = new Comment();
-			result.setComment(token.asComment());
+			comment = token.asComment();
+		//Non-comment that has a label and mnemonic
 		} else {
-
 			//See if there's a label
 			String label = null;
 			token = lexer.accept(Token.Type.SYMBOL);
@@ -81,11 +91,24 @@ public class Parser {
 			
 			result.setLabel(label);
 		}
-		//Get all whitespace on this line
+		
+		//Get all whitespace until comment
+		//Or no whitespace separating the comment from the rest of the command
 		while (lexer.accept(Token.Type.WHITESPACE) != null);
-		//Make sure there's a new line
-		lexer.expect(Token.Type.NEWLINE);
+		
+		if ((token = lexer.accept(Token.Type.COMMENT)) != null) {
+			comment = token.asComment();
+		}
+		
+		//Get all the whitespace until newline or end
+		while (lexer.accept(Token.Type.WHITESPACE) != null);
+		
+		//If there's not newline, but still a token, then complain!
+		if (lexer.accept(Token.Type.NEWLINE) == null && (token = lexer.peek()) != null) {
+			throw new ParseError(token, "Expected newline or end of stream not " + token);
+		}
 		result.setLine(line);
+		result.setComment(comment);
 		return result;
 	}
 	

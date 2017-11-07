@@ -171,7 +171,7 @@ public class Lexer {
 	//If this method returns null, then the token was not of the given type
 	public Token accept(Type type) {
 		Token result = peek();
-		if (result.is(type)) {
+		if (result != null && result.is(type)) {
 			next();
 			return result;
 		}

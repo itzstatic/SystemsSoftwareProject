@@ -16,7 +16,8 @@ public class Test {
 		
 		Command c;
 		while ((c = p.next()) != null) {
-			System.out.println(c.getLabel() + " " + c.getName() + " " + c.getArgument());
+			System.out.println(c.getLine() + " " + c.getLabel() + " " 
+					+ c.getName() + " " + c.getArgument() + " " + c.getComment());
 		}
 	}
 }

@@ -30,16 +30,8 @@ public class EndDirective extends AbstractCommand implements ExpressionCommand {
 	}
 
 	@Override
-	public String toString() {
-		if (first == null) {
-			return "END";
-		} 
-		return "END " + first;
-	}
-
-	@Override
 	public String getName() {
-		return "END";
+		return " END";
 	}
 
 	//The only expression command that might contain a null expression
@@ -48,6 +40,6 @@ public class EndDirective extends AbstractCommand implements ExpressionCommand {
 		if (first == null) {
 			return null;
 		}
-		return first.toString();
+		return " " + first.toString();
 	}
 }

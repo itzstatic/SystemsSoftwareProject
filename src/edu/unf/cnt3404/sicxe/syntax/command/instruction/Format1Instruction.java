@@ -1,9 +1,8 @@
 package edu.unf.cnt3404.sicxe.syntax.command.instruction;
 
 import edu.unf.cnt3404.sicxe.global.Mnemonic;
-import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
 
-public class Format1Instruction extends Instruction implements WriteableCommand {
+public class Format1Instruction extends Instruction {
 
 	public Format1Instruction(Mnemonic mnemonic) {
 		super(mnemonic);

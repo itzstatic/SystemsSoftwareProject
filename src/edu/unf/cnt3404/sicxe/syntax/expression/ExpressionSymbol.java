@@ -9,44 +9,42 @@ import edu.unf.cnt3404.sicxe.syntax.Symbol;
 
 public class ExpressionSymbol implements ExpressionNode {
 
-	private String symbol;
+	private String name; //Of the symbol
 	
-	public ExpressionSymbol(String symbol) {
-		//Creates an expression from the given symbol
-		if (symbol == null) {
-			System.out.println("Reee");
-		}
-		this.symbol = symbol;
+	private Symbol symbol; //To be resolved during assembly
+	
+	//Creats an expression from a symbol with the given name
+	public ExpressionSymbol(String name) {
+		this.name = name;
 	}
 	
-	@Override
-	public boolean isAbsolute(Program program) {
-		return program.getSymbol(symbol).isAbsolute();
+	public String getName() {
+		return name;
 	}
-
+	
 	@Override
 	public int getValue(Command command, Program program) {
-		Symbol s = program.getSymbol(symbol);
-		if (s == null) {
-			throw new AssembleError(command, "Unrecognized symbol " + symbol);
+		if (symbol == null) {
+			symbol = program.getSymbol(name);
+			if (symbol == null) {
+				throw new AssembleError(command, "Unrecognized symbol " + name);
+			}
 		}
-		return s.getValue();
+		return symbol.getValue();
 	}
 
 	@Override
 	public void write(StringBuilder infix) {
-		infix.append(symbol);
+		infix.append(name);
 	}
 	
 	@Override
-	public void addAbsoluteSymbols(Program program, List<String> symbols) {
-		if (program.getSymbol(symbol).isAbsolute()) {
-			symbols.add(symbol);
-		}
+	public void addSignedSymbols(List<SignedSymbol> symbols) {
+		symbols.add(new SignedSymbol(symbol));
 	}
 
 	@Override
 	public String toString() {
-		return symbol;
+		return name;
 	}
 }

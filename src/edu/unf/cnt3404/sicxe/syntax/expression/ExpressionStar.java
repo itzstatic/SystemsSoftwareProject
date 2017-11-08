@@ -9,12 +9,6 @@ import edu.unf.cnt3404.sicxe.syntax.Program;
 public class ExpressionStar implements ExpressionNode {
 
 	@Override
-	public boolean isAbsolute(Program program) {
-		//Location counter is always relative
-		return false;
-	}
-
-	@Override
 	public int getValue(Command command, Program program) {
 		return program.getLocationCounter();
 	}
@@ -25,7 +19,7 @@ public class ExpressionStar implements ExpressionNode {
 	}
 	
 	@Override
-	public void addAbsoluteSymbols(Program program, List<String> symbols) {
+	public void addSignedSymbols(List<SignedSymbol> symbols) {
 		//No symbols in the star expression
 	}
 

@@ -90,7 +90,6 @@ public class Lexer {
 		}
 		if (c == '.') {
 			StringBuilder comment = new StringBuilder();
-			comment.append(c);
 			//read until the next line
 			while (!isLineSeparator(c = Character.toUpperCase(scanner.peek())) 
 				&& c != Scanner.EOS) {

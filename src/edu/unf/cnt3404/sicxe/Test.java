@@ -7,10 +7,16 @@ import java.io.PrintWriter;
 
 public class Test {
 	public static void main(String[] args) throws FileNotFoundException {
-		SicXeAssm asm = new SicXeAssm(new BufferedReader(new FileReader("test.txt")));
+		SicXeAssm asm = new SicXeAssm(new BufferedReader(new FileReader("prog25.txt")));
 		
 		asm.passOne();
-		asm.passTwo(new PrintWriter(System.err), new PrintWriter(System.out));
-		asm.debug();
+		
+		PrintWriter lst = new PrintWriter(System.err);
+		PrintWriter obj = new PrintWriter(System.out);
+		
+		asm.passTwo(lst, obj);
+		
+		lst.flush();
+		obj.flush();
 	}
 }

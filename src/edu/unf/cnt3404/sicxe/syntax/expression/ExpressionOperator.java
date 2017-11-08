@@ -1,5 +1,6 @@
 package edu.unf.cnt3404.sicxe.syntax.expression;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import edu.unf.cnt3404.sicxe.syntax.Command;
@@ -20,19 +21,19 @@ public class ExpressionOperator implements ExpressionNode {
 		this.right = right;
 	}
 	
-	@Override
-	public boolean isAbsolute(Program program) {
-		boolean l = left.isAbsolute(program);
-		boolean r = right.isAbsolute(program);
-		
-		if (operator == Type.SUB && !l && !r) {
-			//In subtraction, relative left and right operands 
-			//Will leave an absolute expression
-			return true;
-		}
-		//Both operations must be absolute
-		return l && r;
-	}
+//	@Override
+//	public boolean isAbsolute(Program program) {
+//		boolean l = left.isAbsolute(program);
+//		boolean r = right.isAbsolute(program);
+//		
+//		if (operator == Type.SUB && !l && !r) {
+//			//In subtraction, relative left and right operands 
+//			//Will leave an absolute expression
+//			return true;
+//		}
+//		//Both operations must be absolute
+//		return l && r;
+//	}
 	
 	@Override
 	public int getValue(Command command, Program program) {
@@ -72,9 +73,20 @@ public class ExpressionOperator implements ExpressionNode {
 	}
 	
 	@Override
-	public void addAbsoluteSymbols(Program program, List<String> symbols) {
-		left.addAbsoluteSymbols(program, symbols);
-		right.addAbsoluteSymbols(program, symbols);
+	public void addSignedSymbols(List<SignedSymbol> symbols) {
+		//No relative terms may enter into multiplication or division
+		
+		
+		left.addSignedSymbols(symbols);
+		
+		//Invert the sign of the right side's symbols
+		List<SignedSymbol> buffer = new ArrayList<>();
+		right.addSignedSymbols(buffer);
+		for (SignedSymbol symbol : buffer) {
+			symbol.invertSign();
+		}
+		
+		symbols.addAll(buffer);
 	}
 	
 	public static enum Type {

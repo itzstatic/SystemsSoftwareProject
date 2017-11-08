@@ -7,7 +7,7 @@ public abstract class AbstractCommand implements Command {
 	private String label;
 	private String comment;
 	private int line;
-	
+
 	@Override
 	public void setLabel(String label) {
 		this.label = label;

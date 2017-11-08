@@ -44,13 +44,13 @@ public class Format2Instruction extends Instruction {
 	//Sets the 4 higher order bits of the byte argument to the 4 lower bits of higher
 	//Sets the 4 lower order bits of the argument to 0
 	public void setArgument(byte higher) {
-		argument = (byte)((higher << 4) & (0xFF00)); 
+		argument = (byte)((higher & 0xF) << 4); 
 	}
 	
 	//Sets the 4 higher order bits of the argument to the lower four bits of higher
 	//Sets the 4 lower order bits of the argument to the lower four bits of lower
 	public void setArgument(byte higher, byte lower) {
-		argument = (byte)((higher << 4) | (lower & 0xFF));
+		argument = (byte)(((higher & 0xF) << 4) | (lower & 0xF));
 	}
 	
 	//Returns the register if this instruction is a Format2R or Format2RN instruction
@@ -83,10 +83,10 @@ public class Format2Instruction extends Instruction {
 	@Override
 	public String getArgument() {
 		switch(mnemonic.getFormat()) {
-		case FORMAT2N: return Integer.toString(n);
-		case FORMAT2R: return r1;
-		case FORMAT2RN: return r2 + "," + n;
-		case FORMAT2RR: return r1 + "," + r2;
+		case FORMAT2N: return " " + Integer.toString(n);
+		case FORMAT2R: return " " + r1;
+		case FORMAT2RN: return " " + r2 + "," + n;
+		case FORMAT2RR: return " " + r1 + "," + r2;
 		default: throw new IllegalStateException(mnemonic.getFormat().toString());
 		}
 	}

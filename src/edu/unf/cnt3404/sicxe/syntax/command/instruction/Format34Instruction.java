@@ -1,5 +1,6 @@
 package edu.unf.cnt3404.sicxe.syntax.command.instruction;
 
+import edu.unf.cnt3404.sicxe.global.Format;
 import edu.unf.cnt3404.sicxe.global.Mnemonic;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.command.ModifiableCommand;
@@ -60,8 +61,9 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 		return extended;
 	}
 	
-	public TargetMode getTargetMode() {
-		return target;
+	//Otherwise, some sort of relative: PC or base
+	public boolean isAbsoluteAddressing() {
+		return address == AddressMode.ABSOLUTE;
 	}
 	
 	@Override
@@ -86,10 +88,6 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 			buffer[pos + 2] = (byte)(argument);
 		}
 		buffer[pos + 1] |= address.getXbpeFlag(indexed, extended);
-		
-		if (getLine() == 10 ) {
-			System.out.println(Integer.toString(argument, 2));
-		}
 	}
 
 	@Override
@@ -109,6 +107,10 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 
 	@Override
 	public String getArgument() {
+		if (mnemonic.getFormat() == Format.FORMAT34) {
+			return null; //This is bad. Really really bad.
+		}
+		
 		StringBuilder result = new StringBuilder();
 		switch(target) {
 		case IMMEDIATE: result.append('#'); break;

@@ -1,5 +1,6 @@
 package edu.unf.cnt3404.sicxe.syntax.command;
 
+
 public class Comment extends AbstractCommand {
 
 	@Override

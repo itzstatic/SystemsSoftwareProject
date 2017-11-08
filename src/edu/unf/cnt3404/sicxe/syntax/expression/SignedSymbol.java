@@ -5,12 +5,11 @@ import edu.unf.cnt3404.sicxe.syntax.Symbol;
 //Represents a symbol and its total sign in an expression
 public class SignedSymbol {
 	private Symbol symbol;
-	private boolean positive;
+	private boolean positive = true;
 	
-	//Constructs a symbol with the given text and sign
-	public SignedSymbol(Symbol symbol, boolean positive) {
+	//Constructs a symbol with a positive sign
+	public SignedSymbol(Symbol symbol) {
 		this.symbol = symbol;
-		this.positive = positive;
 	}
 	
 	//Toggles the sign of this symbol

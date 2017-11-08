@@ -18,7 +18,6 @@ public class Symbol {
 	public Symbol(String text) {
 		this.text = text;
 		external = true;
-		absolute = true;
 	}
 	
 	//Returns whether the symbol is external; otherwise, it is local

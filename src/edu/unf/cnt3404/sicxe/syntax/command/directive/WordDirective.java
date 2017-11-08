@@ -47,13 +47,8 @@ public class WordDirective extends AbstractCommand implements ModifiableCommand 
 	}
 
 	@Override
-	public String toString() {
-		return "WORD " + expr;
-	}
-
-	@Override
 	public String getName() {
-		return "WORD";
+		return " WORD";
 	}
 
 	@Override

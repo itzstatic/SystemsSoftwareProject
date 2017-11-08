@@ -8,6 +8,7 @@ import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Data;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.command.Comment;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.BaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ByteDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ResbDirective;
@@ -89,6 +90,7 @@ public class Parser {
 				case "RESW": result = parseReswDirective(); break;
 				case "BYTE": result = parseByteDirective(); break;
 				case "WORD": result = parseWordDirective(); break;
+				case "BASE": result = parseBaseDirective(); break;
 				default: throw new AssembleError(token, "Directive " + mnemonic.getName() + " not implemented");
 				}
 			} else {
@@ -229,6 +231,11 @@ public class Parser {
 	private Command parseWordDirective() {
 		lexer.expect(Token.Type.WHITESPACE);
 		return new WordDirective(parseExpression());
+	}
+	
+	private Command parseBaseDirective() {
+		lexer.expect(Token.Type.WHITESPACE);
+		return new BaseDirective(parseExpression());
 	}
 	
 	//Attempts to parse an expression. Will stop parsing when the lexer reaches a newline

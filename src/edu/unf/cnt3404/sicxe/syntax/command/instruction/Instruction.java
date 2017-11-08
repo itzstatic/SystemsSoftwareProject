@@ -4,7 +4,8 @@ import edu.unf.cnt3404.sicxe.global.Mnemonic;
 import edu.unf.cnt3404.sicxe.syntax.command.AbstractCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
 
-public abstract class Instruction extends AbstractCommand implements WriteableCommand {
+public abstract class Instruction extends AbstractCommand implements
+		WriteableCommand {
 
 	protected Mnemonic mnemonic;
 	
@@ -14,7 +15,6 @@ public abstract class Instruction extends AbstractCommand implements WriteableCo
 	
 	@Override
 	public String getName() {
-		return mnemonic.getName();
+		return " " + mnemonic.getName();
 	}
-
 }

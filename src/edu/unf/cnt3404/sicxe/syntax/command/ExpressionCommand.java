@@ -10,6 +10,6 @@ public interface ExpressionCommand extends Command {
 	
 	@Override
 	default public String getArgument() {
-		return getExpression().toString();
+		return " " + getExpression().toString();
 	}
 }

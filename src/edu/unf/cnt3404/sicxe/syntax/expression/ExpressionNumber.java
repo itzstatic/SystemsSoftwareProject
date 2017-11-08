@@ -14,12 +14,6 @@ public class ExpressionNumber implements ExpressionNode {
 	public ExpressionNumber(int value) {
 		this.value = value;
 	}
-	
-	@Override
-	public boolean isAbsolute(Program program) {
-		//Numerical constants are always absolute
-		return true;
-	}
 
 	@Override
 	public int getValue(Command command, Program program) {
@@ -32,7 +26,7 @@ public class ExpressionNumber implements ExpressionNode {
 	}
 	
 	@Override
-	public void addAbsoluteSymbols(Program program, List<String> symbols) {
+	public void addSignedSymbols(List<SignedSymbol> symbols) {
 		//No symbols to add
 	}
 

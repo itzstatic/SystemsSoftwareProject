@@ -11,6 +11,7 @@ public class Program {
 	private String name;
 	private int start;
 	private int first;
+	private int size;
 	//The contents of the base register, or, an integer less than 0 if
 	//base is disabled
 	private int base;
@@ -41,15 +42,24 @@ public class Program {
 	public int getFirst() {
 		return first;
 	}
+	public int getSize() {
+		return size;
+	}
 	//Location counter methods
 	public void setLocationCounter(int locctr) {
 		this.locctr = locctr;
+		//When the locctr is rewound to something small, then
+		//size should not change
+		if (locctr > size) {
+			size = locctr;
+		}
+		
 	}
 	public int getLocationCounter() {
 		return locctr;
 	}
 	public void incrementLocationCounter(int step) {
-		locctr += step;
+		setLocationCounter(locctr + step);
 	}
 	//Base related methods
 	public void setBase(int base) {

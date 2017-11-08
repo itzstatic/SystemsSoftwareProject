@@ -7,22 +7,16 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
-import edu.unf.cnt3404.sicxe.parse.Lexer;
 import edu.unf.cnt3404.sicxe.parse.AssembleError;
+import edu.unf.cnt3404.sicxe.parse.Lexer;
 import edu.unf.cnt3404.sicxe.parse.Parser;
 import edu.unf.cnt3404.sicxe.parse.Scanner;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Program;
-import edu.unf.cnt3404.sicxe.syntax.command.ModifiableCommand;
-import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
-import edu.unf.cnt3404.sicxe.syntax.command.directive.BaseDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.ExpressionCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
-import edu.unf.cnt3404.sicxe.syntax.command.directive.NoBaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.OrgDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.StartDirective;
-import edu.unf.cnt3404.sicxe.syntax.command.directive.WordDirective;
-import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format2Instruction;
-import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format34Instruction;
 
 //Salim, Brandon Mathis, Brandon Mack
 public class SicXeAssm {
@@ -36,22 +30,37 @@ public class SicXeAssm {
 		parser = new Parser(new Lexer(new Scanner(reader)));
 	}
 	
-	//Add labels to symtab
+	//Eval ORG and modify locctr
+	//Populate symtab with labels
 	public void passOne() {
 		Command c = parser.next();
 		if (c == null) {
 			return; //Empty program
 		}
-		if (!(c instanceof StartDirective)) {
+		
+		if (c instanceof StartDirective) {
+			//Can a program be nameless?
+			if (c.getLabel() == null) {
+				throw new AssembleError(c, "Expected program name");
+			}
+			program.setName(c.getLabel());
+			program.setStart(((StartDirective) c).getStart());
+		} else {
 			throw new AssembleError(c, "Expected START Directive");
 		}
 		
-		 while (c != null && !(c instanceof EndDirective)) {
+		do {
+			c = parser.next();
+			if (c == null) {
+				break;
+			}
+			
 			align.update(c);
 			commands.add(c);
 			//Modify locctr by org expr
 			if (c instanceof OrgDirective) {
-				program.setLocationCounter(((OrgDirective) c).getExpression().getValue(c, program));
+				((OrgDirective) c).getExpression().evaluate(c, program);
+				program.setLocationCounter(((OrgDirective) c).getExpression().getValue());
 			}
 			//Add symbols to symtab
 			if (c.getLabel() != null) {
@@ -59,8 +68,7 @@ public class SicXeAssm {
 			}
 			//Increment locctr by size
 			program.incrementLocationCounter(c.getSize());
-			c = parser.next();
-		}
+		} while (!(c instanceof EndDirective));
 		
 		//Loop terminated without an end directive
 		if (c == null) {
@@ -68,22 +76,10 @@ public class SicXeAssm {
 		}
 	}
 	
-	public void debug() {
-		byte[] buffer;
-		for (Command c : commands) {
-			if (c instanceof WriteableCommand) {
-				buffer = new byte[c.getSize()];
-				((WriteableCommand) c).write(buffer, 0);
-				for (byte b : buffer) {
-					System.out.printf("%02X", b);
-				}
-				System.out.println();
-			}
-		}
-	}
-	
-	//Evaluate expressions
-	//Create all object records
+	//Eval all other expressions
+	//Assemble instructions and directives
+	//Write commands to listing
+	//Write commands to object file
 	public void passTwo(PrintWriter lst, PrintWriter obj) {
 		Assembler assembler = new Assembler(program);
 		ListingProgramWriter listing = new ListingProgramWriter(program, align, lst);
@@ -94,20 +90,12 @@ public class SicXeAssm {
 		object.writeHeaderReferAndDefineRecords();
 		
 		for (Command c : commands) {
-			//There's got to be a better way...
-			if (c instanceof StartDirective) assembler.assemble((StartDirective)c);
-			if (c instanceof EndDirective) assembler.assemble((EndDirective)c);
-			if (c instanceof BaseDirective) assembler.assemble((BaseDirective)c);
-			if (c instanceof NoBaseDirective) assembler.assemble((NoBaseDirective)c);
-			if (c instanceof WordDirective) assembler.assemble((WordDirective)c);
-			
-			if (c instanceof Format2Instruction) assembler.assemble((Format2Instruction)c);
-			if (c instanceof Format34Instruction) assembler.assemble((Format34Instruction)c);
-			
+			if (c instanceof ExpressionCommand) {
+				((ExpressionCommand) c).getExpression().evaluate(c, program);
+			}
+			assembler.assemble(c);
 			listing.write(c);
-			
-			if (c instanceof WriteableCommand) object.write((WriteableCommand)c);
-			if (c instanceof ModifiableCommand) object.modify((ModifiableCommand)c);
+			object.write(c);
 			program.incrementLocationCounter(c.getSize());
 		}
 		
@@ -151,5 +139,7 @@ public class SicXeAssm {
 		}
 		//Run pass two, creating .lst and .obj file
 		assm.passTwo(lst, obj);
+		lst.flush();
+		obj.flush();
 	}
 }

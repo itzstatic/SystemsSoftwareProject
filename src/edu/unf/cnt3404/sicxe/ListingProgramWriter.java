@@ -23,19 +23,24 @@ public class ListingProgramWriter {
 	//Appends the given command to the listing
 	public void write(Command c) {
 		writeColumn(align.getMaxLineLength(), c.getLine());
-		out.printf("%04X    ", program.getLocationCounter()); //4 spaces 
-		//Only non-comments print a label field
 		if (c instanceof Comment) {
-			out.println("." + c.getComment());
+			out.printf("%8s", ""); //Location counter place holder
+			writeColumn(align.getMaxNameLength(), "."); //Place a dot in the name column
+			out.print(" " + c.getComment().trim());
 		} else {
+			out.printf("%04X    ", program.getLocationCounter()); //4 spaces 
 			writeColumn(align.getMaxLabelLength(), c.getLabel());
 			writeColumn(align.getMaxNameLength(), c.getName());
 			writeColumn(align.getMaxArgumentLength(), c.getArgument());
 			if (c instanceof WriteableCommand) {
-				out.println(((WriteableCommand) c).getHexObjectCode());
+				byte[] buffer = new byte[c.getSize()];
+				((WriteableCommand) c).write(buffer, 0);
+				for (byte b : buffer) {
+					out.printf("%02X", b);
+				}
 			}
 		}
-		
+		out.println();
 	}
 	
 	private void writeColumn(int width, int i) {

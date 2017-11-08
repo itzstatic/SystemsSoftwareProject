@@ -21,14 +21,9 @@ public class BaseDirective extends AbstractCommand implements ExpressionCommand 
 	public int getSize() {
 		return 0;
 	}
-	
-	@Override
-	public String toString() {
-		return "BASE " + expr;
-	}
 
 	@Override
 	public String getName() {
-		return "BASE";
+		return " BASE";
 	}
 }

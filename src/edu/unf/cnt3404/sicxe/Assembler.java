@@ -66,6 +66,9 @@ public class Assembler {
 			c.setAddressMode(AddressMode.ABSOLUTE);
 			c.setArgument(expr.getValue());
 			//Modification records will be generated for extended relative 
+		//High-net-sign expression, not extended
+		} else if (Math.abs(expr.getNetSign()) > 1) {
+			throw new AssembleError(c, "More than 1 unpaired relative term and not extended");
 		//Relative expression, not extended
 		} else {
 			int argument; //Either PC Disp or Base Disp

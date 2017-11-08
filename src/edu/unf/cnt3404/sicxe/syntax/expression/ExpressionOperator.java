@@ -79,14 +79,19 @@ public class ExpressionOperator implements ExpressionNode {
 		
 		left.addSignedSymbols(symbols);
 		
-		//Invert the sign of the right side's symbols
-		List<SignedSymbol> buffer = new ArrayList<>();
-		right.addSignedSymbols(buffer);
-		for (SignedSymbol symbol : buffer) {
-			symbol.invertSign();
+		if (operator == Type.SUB) {
+			//Invert the sign of the right side's symbols
+			List<SignedSymbol> buffer = new ArrayList<>();
+			right.addSignedSymbols(buffer);
+			for (SignedSymbol symbol : buffer) {
+				symbol.invertSign();
+			}
+			
+			symbols.addAll(buffer);
+		} else {
+			right.addSignedSymbols(symbols);
 		}
 		
-		symbols.addAll(buffer);
 	}
 	
 	public static enum Type {

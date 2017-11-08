@@ -94,17 +94,15 @@ public class ObjectProgramWriter {
 		int stride = c.getStride();
 		
 		for (SignedSymbol s : expr.getExternalSymbols()) {
-			mods.add(new ModificationRecord(start, stride, s.getSymbol().getText(), s.isPositive()));
+			mods.add(new ModificationRecord(start, stride, s.getSymbol().getName(), s.isPositive()));
 		}
 		//Program relative modification record iff |netSign| == 1
 		int netSign = expr.getNetSign();
-		int abs = Math.abs(netSign);
-		if (abs == 1) {
+		int abs = Math.abs(netSign); 
+		//If >1, then there would require multiple program relative modification records
+		//Is this even allowed? 
+		for (int i = 0; i < abs; i++) {
 			mods.add(new ModificationRecord(start, stride, program.getName(), netSign > 0));
-		} else if (abs > 1) {
-			//If >1, then there would require multiple program relative modification records
-			//Is this even allowed? 
-			throw new AssembleError(c, "Too many unpaired relative symbols (" + abs + ")");
 		}
 		//If 0, then no record
 	}
@@ -112,8 +110,10 @@ public class ObjectProgramWriter {
 	public void writeModificationAndEndRecords() {
 		writeCurrentTextRecord();
 		
-		for (ModificationRecord mod : mods) {
-			mod.write(out);
+		if (program.isRelocatable()) {
+			for (ModificationRecord mod : mods) {
+				mod.write(out);
+			}
 		}
 		
 		out.print('E');

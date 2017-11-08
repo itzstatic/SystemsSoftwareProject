@@ -35,6 +35,9 @@ public class Program {
 	public int getStart() {
 		return start;
 	}
+	public boolean isRelocatable() {
+		return start == 0;
+	}
 	//End directive methods
 	public void setFirst(int first) {
 		this.first = first;
@@ -50,8 +53,8 @@ public class Program {
 		this.locctr = locctr;
 		//When the locctr is rewound to something small, then
 		//size should not change
-		if (locctr > size) {
-			size = locctr;
+		if (locctr - start > size) {
+			size = locctr - start;
 		}
 		
 	}
@@ -99,11 +102,5 @@ public class Program {
 	}
 	public Symbol getSymbol(String symbol) {
 		return symtab.get(symbol);
-	}
-	
-	public void debug() {
-		for (Symbol s : symtab.values()) {
-			System.out.println(s.getText() + " goes to " + Integer.toString(s.getValue(), 16));
-		}
 	}
 }

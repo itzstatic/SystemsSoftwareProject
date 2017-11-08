@@ -49,12 +49,8 @@ public class SicXeAssm {
 			throw new AssembleError(c, "Expected START Directive");
 		}
 		
+		program.setLocationCounter(program.getStart());
 		do {
-			c = parser.next();
-			if (c == null) {
-				break;
-			}
-			
 			align.update(c);
 			commands.add(c);
 			//Modify locctr by org expr
@@ -68,7 +64,13 @@ public class SicXeAssm {
 			}
 			//Increment locctr by size
 			program.incrementLocationCounter(c.getSize());
-		} while (!(c instanceof EndDirective));
+			
+			if (c instanceof EndDirective) {
+				break;
+			}
+			
+			c = parser.next();
+		} while (c != null);
 		
 		//Loop terminated without an end directive
 		if (c == null) {
@@ -96,6 +98,9 @@ public class SicXeAssm {
 			assembler.assemble(c);
 			listing.write(c);
 			object.write(c);
+			if (c instanceof OrgDirective) {
+				program.setLocationCounter(((OrgDirective) c).getExpression().getValue());
+			}
 			program.incrementLocationCounter(c.getSize());
 		}
 		

@@ -8,7 +8,7 @@ import edu.unf.cnt3404.sicxe.syntax.data.AsciiData;
 import edu.unf.cnt3404.sicxe.syntax.data.HexData;
 
 //Reads many characters at a time and creates tokens
-public class Lexer {
+public class Lexer implements Locatable {
 	
 	private static final String SIMPLE_CHARACTERS = "#@,+-*/()";
 	
@@ -24,10 +24,12 @@ public class Lexer {
 		this.scanner = scanner;
 	}
 
+	@Override
 	public int getRow() {
 		return scanner.getRow();
 	}
 	
+	@Override
 	public int getCol() {
 		return scanner.getCol();
 	}
@@ -59,7 +61,7 @@ public class Lexer {
 		int row = scanner.getRow();
 		int col = scanner.getCol();
 		if ((c = Character.toUpperCase(scanner.next())) == Scanner.EOS) {
-			throw new AssembleError(row, col, "Expected token not end of stream");	
+			throw new AssembleError(scanner, "Expected token not end of stream");	
 		}
 		if (isWhitespace(c)) {
 			//Many sequential whitespace chars will yield a single whitespace token
@@ -111,7 +113,7 @@ public class Lexer {
 				}
 				//c was not a quote
 				if (c == Scanner.EOS) {
-					throw new AssembleError(row, col, "Expected ' not end of stream");
+					throw new AssembleError(scanner, "Expected ' not end of stream");
 				}
 				//Create the data object
 				Data data;
@@ -119,7 +121,7 @@ public class Lexer {
 					data = new AsciiData(string.toString());
 				} else if (string.length() % 2 != 0) {
 					//Odd lengthed hex data
-					throw new AssembleError(row, col, "Hex data must be of even legnth");
+					throw new AssembleError(scanner, "Hex data must be of even legnth");
 				} else {
 					data = new HexData(string.toString());
 				}
@@ -144,7 +146,7 @@ public class Lexer {
 		if(isSimple(c)) {
 			return Token.simple(row, col, c);
 		}
-		throw new AssembleError(row, col, "Bad character " + c);
+		throw new AssembleError(scanner, "Bad character " + c);
 	}
 	
 	//Gets the next token but doesn't consume it
@@ -172,11 +174,43 @@ public class Lexer {
 	
 	//Return whether the next token is of the given type and returns the token if possible
 	//If this method returns null, then the token was not of the given type
-	public Token accept(Type type) {
+	private Token accept(Type type) {
 		Token result = peek();
 		if (result != null && result.is(type)) {
 			next();
 			return result;
+		}
+		return null;
+	}
+	
+	public boolean acceptWhitespace() {
+		return accept(Token.Type.WHITESPACE) != null;
+	}
+	
+	public boolean acceptNewline() {
+		return accept(Token.Type.NEWLINE) != null;
+	}
+	
+	public String acceptComment() {
+		Token token = accept(Token.Type.COMMENT);
+		if (token != null) {
+			return token.asComment();
+		}
+		return null;
+	}
+	
+	public String acceptSymbol() {
+		Token token = accept(Token.Type.SYMBOL);
+		if (token != null) {
+			return token.asSymbol();
+		}
+		return null;
+	}
+	
+	public Integer acceptNumber() {
+		Token token = accept(Token.Type.NUMBER);
+		if (token != null) {
+			return token.asNumber();
 		}
 		return null;
 	}
@@ -192,11 +226,31 @@ public class Lexer {
 	
 	//Parses the next token and returns it, or throws an exception if the next token was 
 	//not of the given type
-	public Token expect(Type type) {
+	private Token expect(Type type) {
 		Token result = next();
 		if (!result.is(type)) {
 			throw new AssembleError(result, "Expected " + type + " not " + result);
 		}
 		return result;
+	}
+	
+	public void expectWhitespace() {
+		expect(Token.Type.WHITESPACE);
+	}
+	
+	public Mnemonic expectMnemonic() {
+		return expect(Token.Type.MNEMONIC).asMnemonic();
+	}
+	
+	public int expectNumber() {
+		return expect(Token.Type.NUMBER).asNumber();
+	}
+
+	public String expectSymbol() {
+		return expect(Token.Type.SYMBOL).asSymbol();
+	}
+	
+	public Data expectData() {
+		return expect(Token.Type.DATA).asData();
 	}
 }

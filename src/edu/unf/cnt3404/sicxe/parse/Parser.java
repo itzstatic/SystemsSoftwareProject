@@ -26,7 +26,7 @@ import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionStar;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionSymbol;
 
 //Calls the lexer repeatedly in order to create Commands.
-public class Parser {
+public class Parser implements Locatable {
 	
 	private Lexer lexer;
 	
@@ -39,8 +39,7 @@ public class Parser {
 	//are no commands left and the parsing is finished
 	public Command next() {
 		//Advance to the beginning of the next useful token
-		while (lexer.accept(Token.Type.WHITESPACE) != null
-			|| lexer.accept(Token.Type.NEWLINE) != null);
+		while (lexer.acceptWhitespace() || lexer.acceptNewline());
 	
 		//Check for end
 		if (lexer.peek() == null) {
@@ -50,34 +49,30 @@ public class Parser {
 		Command result;
 		//Then, get the line number and begin parsing
 		int line = lexer.getRow();
-		String comment = null;
 		
 		//Comment only on this line
-		Token token = lexer.accept(Token.Type.COMMENT);
-		if (token != null) {
+		String comment = lexer.acceptComment();
+		if (comment != null) {
 			result = new Comment();
-			comment = token.asComment();
 		//Non-comment that has a label and mnemonic
 		} else {
 			//See if there's a label
-			String label = null;
-			token = lexer.accept(Token.Type.SYMBOL);
-			if (token != null) {
-				label = token.asSymbol();
-				lexer.expect(Token.Type.WHITESPACE);
+			String label = lexer.acceptSymbol();
+			if (label != null) {
+				lexer.expectWhitespace();
 			}
 			
 			//If it's extended...
 			boolean extended = lexer.accept('+');
 			
 			//Get the mnemonic
-			Mnemonic mnemonic = (token = lexer.expect(Token.Type.MNEMONIC)).asMnemonic();
+			Mnemonic mnemonic = lexer.expectMnemonic();
 			
 			//Ensure that the source only extends a F34 mnemonic
 			//This implies someone can extend an RSUB (The only F34 mnemonic)
 			if (extended && mnemonic.getFormat() != Format.FORMAT34 
 				&& mnemonic.getFormat() != Format.FORMAT34M) {
-				throw new AssembleError(token, "Cannot extend mnemonic " + token);
+				throw new AssembleError(lexer, "Cannot extend mnemonic " + mnemonic);
 			}
 			
 			//Parse the rest of it, which depends on the Mnemonic itself
@@ -91,7 +86,7 @@ public class Parser {
 				case "BYTE": result = parseByteDirective(); break;
 				case "WORD": result = parseWordDirective(); break;
 				case "BASE": result = parseBaseDirective(); break;
-				default: throw new AssembleError(token, "Directive " + mnemonic.getName() + " not implemented");
+				default: throw new AssembleError(lexer, "Directive " + mnemonic.getName() + " not implemented");
 				}
 			} else {
 				//Instruction
@@ -112,18 +107,16 @@ public class Parser {
 		
 		//Get all whitespace until comment
 		//Or no whitespace separating the comment from the rest of the command
-		while (lexer.accept(Token.Type.WHITESPACE) != null);
+		while (lexer.acceptWhitespace());
 		
-		if ((token = lexer.accept(Token.Type.COMMENT)) != null) {
-			comment = token.asComment();
-		}
+		comment = lexer.acceptComment();
 		
 		//Get all the whitespace until newline or end
-		while (lexer.accept(Token.Type.WHITESPACE) != null);
+		while (lexer.acceptWhitespace());
 		
 		//If there's not newline, but still a token, then complain!
-		if (lexer.accept(Token.Type.NEWLINE) == null && (token = lexer.peek()) != null) {
-			throw new AssembleError(token, "Expected newline or end of stream not " + token);
+		if (!lexer.acceptNewline() && lexer.peek() != null) {
+			throw new AssembleError(lexer, "Expected newline or end of stream not " + lexer.peek());
 		}
 		result.setLine(line);
 		result.setComment(comment);
@@ -135,37 +128,36 @@ public class Parser {
 	//that new line is consumed by next().
 	//Likewise for related parse methods
 	private Command parseFormat2NCommand(Mnemonic mnemonic) {
-		lexer.expect(Token.Type.WHITESPACE);
-		int n = lexer.expect(Token.Type.NUMBER).asNumber();
+		lexer.expectWhitespace();
+		int n = lexer.expectNumber();
 		return new Format2Instruction(mnemonic, (byte)n);
 	}
 	
 	private Command parseFormat2RCommand(Mnemonic mnemonic) {
-		lexer.expect(Token.Type.WHITESPACE);
-		String r = lexer.expect(Token.Type.SYMBOL).asSymbol();
+		lexer.expectWhitespace();
+		String r = lexer.expectSymbol();
 		return new Format2Instruction(mnemonic, r);
 	}
 	
 	private Command parseFormat2RRCommand(Mnemonic mnemonic) {
-		lexer.expect(Token.Type.WHITESPACE);
-		
-		String r1 = lexer.expect(Token.Type.SYMBOL).asSymbol();
+		lexer.expectWhitespace();
+		String r1 = lexer.expectSymbol();
 		lexer.expect(',');
-		String r2 = lexer.expect(Token.Type.SYMBOL).asSymbol();
+		String r2 = lexer.expectSymbol();
 		
 		return new Format2Instruction(mnemonic, r1, r2);
 	}
 	
 	private Command parseFormat2RNCommand(Mnemonic mnemonic) {
-		lexer.expect(Token.Type.WHITESPACE);
-		String r = lexer.expect(Token.Type.SYMBOL).asSymbol();
+		lexer.expectWhitespace();
+		String r = lexer.expectSymbol();
 		lexer.expect(',');
-		int n = lexer.expect(Token.Type.NUMBER).asNumber();
+		int n = lexer.expectNumber();
 		return new Format2Instruction(mnemonic, r, (byte)n);
 	}
 	
 	private Command parseFormat34MCommand(boolean extended, Mnemonic mnemonic) {
-		lexer.expect(Token.Type.WHITESPACE);
+		lexer.expectWhitespace();
 		
 		//Figure out what target mode
 		TargetMode target;
@@ -184,9 +176,9 @@ public class Parser {
 		boolean indexed = false;
 		//See if it's indexed or not
 		if (lexer.accept(',')) {
-			Token x = lexer.expect(Token.Type.SYMBOL);
-			if (!x.asSymbol().equals("X")) {
-				throw new AssembleError(x, "Expected X not " + x.asSymbol());
+			String x = lexer.expectSymbol();
+			if (!x.equals("X")) {
+				throw new AssembleError(lexer, "Expected X not " + x);
 			}
 			indexed = true;
 		}
@@ -198,43 +190,43 @@ public class Parser {
 	//Postcondition: Do not consume the new line at the end. That is consumed by next()
 	//Likewise for other parse...Directive methods
 	private Command parseStartDirective() {
-		lexer.expect(Token.Type.WHITESPACE);
-		int start = lexer.expect(Token.Type.NUMBER).asNumber();
+		lexer.expectWhitespace();
+		int start = lexer.expectNumber();
 		return new StartDirective(start);
 	}
 	
 	private Command parseEndDirective() {
-		if (lexer.accept(Token.Type.WHITESPACE) != null) {
+		if (lexer.acceptWhitespace()) {
 			return new EndDirective(parseExpression());
 		}
 		return new EndDirective();
 	}
 	
 	private Command parseResbDirective() {
-		lexer.expect(Token.Type.WHITESPACE);
-		int bytes = lexer.expect(Token.Type.NUMBER).asNumber();
+		lexer.expectWhitespace();
+		int bytes = lexer.expectNumber();
 		return new ResbDirective(bytes);
 	}
 	
 	private Command parseReswDirective() {
-		lexer.expect(Token.Type.WHITESPACE);
-		int words = lexer.expect(Token.Type.NUMBER).asNumber();
+		lexer.expectWhitespace();
+		int words = lexer.expectNumber();
 		return new ReswDirective(words);
 	}
 	
 	private Command parseByteDirective() {
-		lexer.expect(Token.Type.WHITESPACE);
-		Data data = lexer.expect(Token.Type.DATA).asData();
+		lexer.expectWhitespace();
+		Data data = lexer.expectData();
 		return new ByteDirective(data);
 	}
 	
 	private Command parseWordDirective() {
-		lexer.expect(Token.Type.WHITESPACE);
+		lexer.expectWhitespace();
 		return new WordDirective(parseExpression());
 	}
 	
 	private Command parseBaseDirective() {
-		lexer.expect(Token.Type.WHITESPACE);
+		lexer.expectWhitespace();
 		return new BaseDirective(parseExpression());
 	}
 	
@@ -246,15 +238,14 @@ public class Parser {
 		Stack<ExpressionNode> nodes = new Stack<>();
 		//Null element in operators indicates parentheses
 		Stack<ExpressionOperator.Type> operators = new Stack<>();
-		Token token;
 		//This flag toggles between tokens. It is required to distinguish star (*) as a
 		//multiplication operator versus as a location counter operand.
 		boolean expectsOperator = false; //Initially expect a value
 		//While there are tokens to be read
-		while ((token = lexer.peek()) != null) {
+		while (lexer.peek() != null) {
 			//System.out.println("OPERATORS: " + operators);
 			//System.out.println("OPERANDS: " + nodes);
-			if (lexer.accept(Token.Type.WHITESPACE) != null) {
+			if (lexer.acceptWhitespace()) {
 				continue;
 			}
 			if (expectsOperator) {
@@ -278,7 +269,7 @@ public class Parser {
 					}
 					if (operators.isEmpty()) {
 						//Therefore, peek() never returned null, and there was no opening parentheses
-						throw new AssembleError(token, "Did not expect )");
+						throw new AssembleError(lexer, "Did not expect )");
 					}
 					//Otherwise, peek() returned null, so pop it
 					operators.pop();
@@ -300,10 +291,13 @@ public class Parser {
 				}
 				operators.push(operator);
 			} else { //If the parser expects an operand
-				if (lexer.accept(Token.Type.SYMBOL) != null) {
-					nodes.add(new ExpressionSymbol(token.asSymbol()));
-				} else if (lexer.accept(Token.Type.NUMBER) != null) {
-					nodes.add(new ExpressionNumber(token.asNumber()));
+				String symbol;
+				Integer number;
+				
+				if ((symbol = lexer.acceptSymbol()) != null) {
+					nodes.add(new ExpressionSymbol(symbol));
+				} else if ((number = lexer.acceptNumber()) != null) {
+					nodes.add(new ExpressionNumber(number));
 				} else if (lexer.accept('*')) {
 					nodes.add(new ExpressionStar());
 				} else if (lexer.accept('(')) {
@@ -321,8 +315,7 @@ public class Parser {
 			ExpressionOperator.Type operator = operators.pop();
 			//If a parentheses was found on the stack
 			if (operator == null) {
-				//Token is always null at this point
-				throw new AssembleError(token, "Unbalanced parentheses" + token);
+				throw new AssembleError(lexer, "Unbalanced parentheses");
 			}
 			//Ensure left is the first dequeue
 			//Pop operator into nodes
@@ -332,5 +325,15 @@ public class Parser {
 			nodes.add(new ExpressionOperator(operator, left, right));
 		}
 		return new Expression(nodes.pop());
+	}
+
+	@Override
+	public int getRow() {
+		return lexer.getRow();
+	}
+
+	@Override
+	public int getCol() {
+		return lexer.getCol();
 	}
 }

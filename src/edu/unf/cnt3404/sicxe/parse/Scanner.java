@@ -6,7 +6,7 @@ import java.io.IOException;
 //Yields a character stream, and keeps track of location
 //in the source code. Also, \r\n, microsoft's line terminator, 
 //will be yielded as a single character \n.
-public class Scanner {
+public class Scanner implements Locatable {
 	
 	public static final char EOS = (char)-1;
 	
@@ -18,10 +18,11 @@ public class Scanner {
 		this.reader = reader;
 	}
 	
+	@Override
 	public int getRow() {
 		return row;
 	}
-	
+	@Override
 	public int getCol() {
 		return col;
 	}

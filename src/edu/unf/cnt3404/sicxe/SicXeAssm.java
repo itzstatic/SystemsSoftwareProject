@@ -74,7 +74,7 @@ public class SicXeAssm {
 		
 		//Loop terminated without an end directive
 		if (c == null) {
-			throw new AssembleError("Expected END Directive");
+			throw new AssembleError(parser, "Expected END Directive");
 		}
 	}
 	

@@ -4,7 +4,7 @@ import edu.unf.cnt3404.sicxe.global.Mnemonic;
 import edu.unf.cnt3404.sicxe.syntax.Data;
 
 //Wraps a syntax element with its position in the source code
-public class Token {
+public class Token implements Locatable {
 	
 	private Object value;
 	//The actual type of value varies depending on token type:
@@ -52,10 +52,11 @@ public class Token {
 	public static Token	newline(int row, int col) {
 		return new Token(row, col, Type.NEWLINE, null);
 	}
-	
+	@Override
 	public int getRow() {
 		return row;
 	}
+	@Override
 	public int getCol() {
 		return col;
 	}

@@ -4,12 +4,14 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
+import edu.unf.cnt3404.sicxe.object.DefineRecord;
 import edu.unf.cnt3404.sicxe.object.ModificationRecord;
+import edu.unf.cnt3404.sicxe.object.ReferRecord;
 import edu.unf.cnt3404.sicxe.object.TextRecord;
-import edu.unf.cnt3404.sicxe.parse.AssembleError;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.Program;
+import edu.unf.cnt3404.sicxe.syntax.Symbol;
 import edu.unf.cnt3404.sicxe.syntax.command.ModifiableCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format34Instruction;
@@ -30,12 +32,45 @@ public class ObjectProgramWriter {
 	}
 	
 	public void writeHeaderReferAndDefineRecords() {
+		//Write the header record
 		out.print('H');
 		out.printf("%-6s", program.getName());
 		out.printf("%06X", program.getStart());
 		out.printf("%06X", program.getSize());
 		out.println();
-		//TODO: Refer and Define records
+		//Write define records
+		DefineRecord define = null;
+		for (Symbol def : program.getExternalDefinitions()) {
+			if (define == null) {
+				define = new DefineRecord();
+			}
+			if (!define.add(def)) {
+				define.write(out);
+				define = new DefineRecord();
+				define.add(def); //This call should always succeed
+			}
+		}
+		//Write the final Define record
+		if (define != null) {
+			define.write(out);
+		}
+		
+		//Write refer records
+		ReferRecord refer = null;
+		for (String ref : program.getExternalReferences()) {
+			if (refer == null) {
+				refer = new ReferRecord();
+			}
+			if (!refer.add(ref)) {
+				refer.write(out);
+				refer = new ReferRecord();
+				refer.add(ref); //This call should always succeed
+			}
+		}
+		//Write the final record
+		if (refer != null) {
+			refer.write(out);
+		}
 	}
 	
 	//Writes the command to the object program

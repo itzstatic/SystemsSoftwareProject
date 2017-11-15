@@ -7,6 +7,7 @@ import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.BaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtdefDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.NoBaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.WordDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.AddressMode;
@@ -114,4 +115,5 @@ public class Assembler {
 	private void assemble(NoBaseDirective c) {
 		program.disableBase();
 	}
+	
 }

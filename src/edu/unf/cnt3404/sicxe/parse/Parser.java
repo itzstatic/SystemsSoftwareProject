@@ -1,5 +1,7 @@
 package edu.unf.cnt3404.sicxe.parse;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Stack;
 
 import edu.unf.cnt3404.sicxe.global.Format;
@@ -11,6 +13,8 @@ import edu.unf.cnt3404.sicxe.syntax.command.Comment;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.BaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ByteDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtdefDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtrefDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ResbDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ReswDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.StartDirective;
@@ -86,6 +90,8 @@ public class Parser implements Locatable {
 				case "BYTE": result = parseByteDirective(); break;
 				case "WORD": result = parseWordDirective(); break;
 				case "BASE": result = parseBaseDirective(); break;
+				case "EXTDEF": result = parseExtdefDirective(); break;
+				case "EXTREF": result = parseExtrefDirective(); break;
 				default: throw new AssembleError(lexer, "Directive " + mnemonic.getName() + " not implemented");
 				}
 			} else {
@@ -103,13 +109,12 @@ public class Parser implements Locatable {
 			}
 			
 			result.setLabel(label);
+			//Get all whitespace until comment
+			//Or no whitespace separating the comment from the rest of the command
+			while (lexer.acceptWhitespace());
+			
+			comment = lexer.acceptComment();
 		}
-		
-		//Get all whitespace until comment
-		//Or no whitespace separating the comment from the rest of the command
-		while (lexer.acceptWhitespace());
-		
-		comment = lexer.acceptComment();
 		
 		//Get all the whitespace until newline or end
 		while (lexer.acceptWhitespace());
@@ -228,6 +233,24 @@ public class Parser implements Locatable {
 	private Command parseBaseDirective() {
 		lexer.expectWhitespace();
 		return new BaseDirective(parseExpression());
+	}
+	
+	private Command parseExtrefDirective() {
+		lexer.expectWhitespace();
+		List<String> symbols = new ArrayList<>();
+		do {
+			symbols.add(lexer.expectSymbol());
+		} while (lexer.accept(','));
+		return new ExtrefDirective(symbols);
+	}
+	
+	private Command parseExtdefDirective() {
+		lexer.expectWhitespace();
+		List<String> symbols = new ArrayList<>();
+		do {
+			symbols.add(lexer.expectSymbol());
+		} while (lexer.accept(','));
+		return new ExtdefDirective(symbols);
 	}
 	
 	//Attempts to parse an expression. Will stop parsing when the lexer reaches a newline

@@ -1,0 +1,22 @@
+copy	start	0
+.Just the first CSECT of prog216		
+		extdef	buffer,length
+		extref	rdrec,wrrec
+first	stl		retadr
+cloop	+jsub	rdrec
+		lda		length
+		comp	#0
+		jeq		endfil
+		+jsub	wrrec
+		j		cloop
+endfil	lda		EOF .Literals not implemented yet
+		sta		buffer
+		lda		#3
+		sta		length
+		+jsub	wrrec
+		j		@retadr
+retadr	resw	1
+length	resw	1
+eof		byte	c'EOF'. Again, literals not implemented
+buffer	resb	4096
+		end		first

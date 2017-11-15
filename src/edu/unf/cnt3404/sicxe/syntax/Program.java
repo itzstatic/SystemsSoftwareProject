@@ -84,7 +84,12 @@ public class Program {
 	public List<Symbol> getExternalDefinitions() {
 		List<Symbol> result = new ArrayList<>();
 		for (String def : definitions) {
-			result.add(getSymbol(def));
+			Symbol symbol = getSymbol(def);
+			if (symbol == null) {
+				throw new RuntimeException("External Definition symbol " + def
+						+ " was never defined");
+			}
+			result.add(symbol);
 		}
 		return result;
 	}

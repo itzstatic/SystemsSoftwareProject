@@ -2,7 +2,7 @@ package edu.unf.cnt3404.sicxe.syntax.command;
 
 import edu.unf.cnt3404.sicxe.syntax.Command;
 
-//Convenience class that implements label and comment methods
+//Convenience class that implements label, comment, and line methods
 public abstract class AbstractCommand implements Command {
 	private String label;
 	private String comment;

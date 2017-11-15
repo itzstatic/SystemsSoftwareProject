@@ -15,6 +15,8 @@ import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.ExpressionCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtdefDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtrefDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.OrgDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.StartDirective;
 
@@ -57,11 +59,22 @@ public class SicXeAssm {
 			if (c instanceof OrgDirective) {
 				((OrgDirective) c).getExpression().evaluate(c, program);
 				program.setLocationCounter(((OrgDirective) c).getExpression().getValue());
+			//Add extdef symbols
+			} else if (c instanceof ExtdefDirective) {
+				for (String def : ((ExtdefDirective) c).getSymbols()) {
+					program.addExternalDefintion(def);
+				}
+			//Add extref symbols
+			} else if (c instanceof ExtrefDirective) {
+				for (String ref : ((ExtrefDirective) c).getSymbols()) {
+					program.addExternalReference(ref);
+				}
 			}
 			//Add symbols to symtab
 			if (c.getLabel() != null) {
 				program.put(c.getLabel(), program.getLocationCounter(), false);
 			}
+			
 			//Increment locctr by size
 			program.incrementLocationCounter(c.getSize());
 			

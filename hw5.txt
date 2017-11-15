@@ -1,0 +1,16 @@
+sum		start	0
+first	ldx		#0
+		lda		#0
+		+ldb	#table2
+		base	table2
+loop	add		table,x
+		add		table2,x
+		tix		count
+		jlt		loop
+		+sta	total
+		rsub
+count	resw	1
+table	resw	2000
+table2	resw	2000
+total	resw	1
+		end		first

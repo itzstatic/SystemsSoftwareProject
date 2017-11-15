@@ -1,4 +1,4 @@
-hello	start	5
-first	lda		first
-second	+j		first
-		end		first
+title	start	0
+		org		title+3
+		word	title-*
+		end		title

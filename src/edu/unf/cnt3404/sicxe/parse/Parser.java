@@ -15,6 +15,7 @@ import edu.unf.cnt3404.sicxe.syntax.command.directive.ByteDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtdefDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtrefDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.OrgDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ResbDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ReswDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.StartDirective;
@@ -92,6 +93,7 @@ public class Parser implements Locatable {
 				case "BASE": result = parseBaseDirective(); break;
 				case "EXTDEF": result = parseExtdefDirective(); break;
 				case "EXTREF": result = parseExtrefDirective(); break;
+				case "ORG": result = parseOrgDirective(); break;
 				default: throw new AssembleError(lexer, "Directive " + mnemonic.getName() + " not implemented");
 				}
 			} else {
@@ -251,6 +253,11 @@ public class Parser implements Locatable {
 			symbols.add(lexer.expectSymbol());
 		} while (lexer.accept(','));
 		return new ExtdefDirective(symbols);
+	}
+	
+	private Command parseOrgDirective() {
+		lexer.expectWhitespace();
+		return new OrgDirective(parseExpression());
 	}
 	
 	//Attempts to parse an expression. Will stop parsing when the lexer reaches a newline

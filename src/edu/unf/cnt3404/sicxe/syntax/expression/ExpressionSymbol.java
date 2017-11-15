@@ -13,7 +13,7 @@ public class ExpressionSymbol implements ExpressionNode {
 	
 	private Symbol symbol; //To be resolved during assembly
 	
-	//Creats an expression from a symbol with the given name
+	//Creates an expression from a symbol with the given name
 	public ExpressionSymbol(String name) {
 		this.name = name;
 	}
@@ -39,12 +39,7 @@ public class ExpressionSymbol implements ExpressionNode {
 	}
 	
 	@Override
-	public void addSignedSymbols(List<SignedSymbol> symbols) {
-		symbols.add(new SignedSymbol(symbol));
-	}
-
-	@Override
-	public String toString() {
-		return name;
+	public void addTerms(List<Term> terms, Program program) {
+		terms.add(new Term(symbol));
 	}
 }

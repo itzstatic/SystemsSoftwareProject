@@ -53,6 +53,6 @@ public class WordDirective extends AbstractCommand implements ModifiableCommand 
 
 	@Override
 	public String getArgument() {
-		return expr.toString();
+		return " " + expr.toString();
 	}
 }

@@ -19,12 +19,7 @@ public class ExpressionStar implements ExpressionNode {
 	}
 	
 	@Override
-	public void addSignedSymbols(List<SignedSymbol> symbols) {
-		//No symbols in the star expression
-	}
-
-	@Override
-	public String toString() {
-		return "*";
+	public void addTerms(List<Term> terms, Program program) {
+		terms.add(new Term());
 	}
 }

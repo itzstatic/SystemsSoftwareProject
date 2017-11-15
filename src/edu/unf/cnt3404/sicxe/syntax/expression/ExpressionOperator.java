@@ -21,20 +21,6 @@ public class ExpressionOperator implements ExpressionNode {
 		this.right = right;
 	}
 	
-//	@Override
-//	public boolean isAbsolute(Program program) {
-//		boolean l = left.isAbsolute(program);
-//		boolean r = right.isAbsolute(program);
-//		
-//		if (operator == Type.SUB && !l && !r) {
-//			//In subtraction, relative left and right operands 
-//			//Will leave an absolute expression
-//			return true;
-//		}
-//		//Both operations must be absolute
-//		return l && r;
-//	}
-	
 	@Override
 	public int getValue(Command command, Program program) {
 		int l = left.getValue(command, program);
@@ -73,23 +59,23 @@ public class ExpressionOperator implements ExpressionNode {
 	}
 	
 	@Override
-	public void addSignedSymbols(List<SignedSymbol> symbols) {
+	public void addTerms(List<Term> terms, Program program) {
 		//No relative terms may enter into multiplication or division
 		
 		
-		left.addSignedSymbols(symbols);
+		left.addTerms(terms, program);
 		
 		if (operator == Type.SUB) {
 			//Invert the sign of the right side's symbols
-			List<SignedSymbol> buffer = new ArrayList<>();
-			right.addSignedSymbols(buffer);
-			for (SignedSymbol symbol : buffer) {
+			List<Term> buffer = new ArrayList<>();
+			right.addTerms(buffer, program);
+			for (Term symbol : buffer) {
 				symbol.invertSign();
 			}
 			
-			symbols.addAll(buffer);
+			terms.addAll(buffer);
 		} else {
-			right.addSignedSymbols(symbols);
+			right.addTerms(terms, program);
 		}
 		
 	}

@@ -13,6 +13,7 @@ public interface ExpressionNode {
 	//Write infix string of this expression
 	void write(StringBuilder infix);
 	
-	//Appends external symbols in this expression to the list
-	void addSignedSymbols(List<SignedSymbol> symbols);
+	//Appends relative terms in this expression to the list
+	//Also appends external symbols in this expression
+	void addTerms(List<Term> terms, Program program);
 }

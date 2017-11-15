@@ -7,7 +7,8 @@ import java.io.PrintWriter;
 
 public class Test {
 	public static void main(String[] args) throws FileNotFoundException {
-		SicXeAssm asm = new SicXeAssm(new BufferedReader(new FileReader("prog216.txt")));
+		SicXeAssm asm = new SicXeAssm(
+				new BufferedReader(new FileReader("test.txt")));
 		
 		asm.passOne();
 		

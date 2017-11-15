@@ -22,16 +22,11 @@ public class ExpressionNumber implements ExpressionNode {
 
 	@Override
 	public void write(StringBuilder infix) {
-		infix.append(toString());
+		infix.append(Integer.toString(value));
 	}
 	
 	@Override
-	public void addSignedSymbols(List<SignedSymbol> symbols) {
-		//No symbols to add
-	}
-
-	@Override
-	public String toString() {
-		return Integer.toString(value);
+	public void addTerms(List<Term> terms, Program program) {
+		//No terms to add
 	}
 }

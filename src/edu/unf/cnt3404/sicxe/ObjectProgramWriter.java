@@ -15,7 +15,7 @@ import edu.unf.cnt3404.sicxe.syntax.Symbol;
 import edu.unf.cnt3404.sicxe.syntax.command.ModifiableCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format34Instruction;
-import edu.unf.cnt3404.sicxe.syntax.expression.SignedSymbol;
+import edu.unf.cnt3404.sicxe.syntax.expression.Term;
 
 //Prints an object program to a PrintWriter.
 public class ObjectProgramWriter {
@@ -128,7 +128,7 @@ public class ObjectProgramWriter {
 		int start = program.getLocationCounter() + c.getOffset();
 		int stride = c.getStride();
 		
-		for (SignedSymbol s : expr.getExternalSymbols()) {
+		for (Term s : expr.getExternalSymbols()) {
 			mods.add(new ModificationRecord(start, stride, s.getSymbol().getName(), s.isPositive()));
 		}
 		//Program relative modification record iff |netSign| == 1

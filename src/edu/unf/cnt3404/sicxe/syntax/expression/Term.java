@@ -2,13 +2,16 @@ package edu.unf.cnt3404.sicxe.syntax.expression;
 
 import edu.unf.cnt3404.sicxe.syntax.Symbol;
 
-//Represents a symbol and its total sign in an expression
-public class SignedSymbol {
+//Represents a relative term AND its total sign in an expression
+public class Term {
 	private Symbol symbol;
 	private boolean positive = true;
 	
-	//Constructs a symbol with a positive sign
-	public SignedSymbol(Symbol symbol) {
+	//Constructs a positive star (*) term
+	public Term() { }
+	
+	//Constructs a term with a positive signed symbol
+	public Term(Symbol symbol) {
 		this.symbol = symbol;
 	}
 	
@@ -17,6 +20,8 @@ public class SignedSymbol {
 		positive = !positive;
 	}
 	
+	//Returns the symbol, if this relative term is a relative symbol
+	//Otherwise, returns null if this relative term is a star
 	public Symbol getSymbol() {
 		return symbol;
 	}

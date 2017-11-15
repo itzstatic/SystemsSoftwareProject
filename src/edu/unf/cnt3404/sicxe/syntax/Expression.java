@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNode;
-import edu.unf.cnt3404.sicxe.syntax.expression.SignedSymbol;
+import edu.unf.cnt3404.sicxe.syntax.expression.Term;
 
 //Represents a complete expression that can be an operand of 
 //certain commands in a program
@@ -18,7 +18,7 @@ public class Expression {
 	//The number of positive relative symbols minus the number of negative ones
 	private int netSign;
 	//The external symbol references and associated sign
-	private List<SignedSymbol> externals = new ArrayList<>();
+	private List<Term> externals = new ArrayList<>();
 	
 	private boolean evaluated;
 	
@@ -52,21 +52,26 @@ public class Expression {
 		value = root.getValue(command, program);
 		
 		//Get all symbols
-		List<SignedSymbol> symbols = new ArrayList<>();
-		root.addSignedSymbols(symbols);
+		List<Term> terms = new ArrayList<>();
+		root.addTerms(terms, program);
 		
 		netSign = 0;
-		for (SignedSymbol s : symbols) {
-			if (s.getSymbol().isExternal()) {
-				externals.add(s);
-			} else if (!s.getSymbol().isAbsolute()) {
-				netSign += (s.isPositive() ? 1 : -1);
+		for (Term term : terms) {
+			Symbol symbol = term.getSymbol();
+			//Star terms have null symbol
+			if (symbol == null) {
+				continue;
+			}
+			if (symbol.isExternal()) {
+				externals.add(term);
+			} else if (!symbol.isAbsolute()) {
+				netSign += (term.isPositive() ? 1 : -1);
 			}
 		}
 		evaluated = true;
 	}
 	
-	public List<SignedSymbol> getExternalSymbols() {
+	public List<Term> getExternalSymbols() {
 		return externals;
 	}
 	

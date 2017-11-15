@@ -26,7 +26,7 @@ public class ListingProgramWriter {
 		if (c instanceof Comment) {
 			out.printf("%8s", ""); //Location counter place holder
 			writeColumn(align.getMaxNameLength(), "."); //Place a dot in the name column
-			out.print(" " + c.getComment().trim());
+			out.print(" " + c.getComment());
 		} else {
 			out.printf("%04X    ", program.getLocationCounter()); //4 spaces 
 			writeColumn(align.getMaxLabelLength(), c.getLabel());
@@ -38,6 +38,10 @@ public class ListingProgramWriter {
 				for (byte b : buffer) {
 					out.printf("%02X", b);
 				}
+				out.print(" ");
+			}
+			if (c.getComment() != null) {
+				out.print("." + c.getComment());	
 			}
 		}
 		out.println();

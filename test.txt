@@ -1,4 +1,5 @@
 _title	start	0
+		.Test!
 		org		_title+3
-		word	_title-*
-		end		_title
+		word	_title-* .This is a comment
+		end		_title      .Test

@@ -344,7 +344,7 @@ class ListingProgramWriter {
 		if (c instanceof Comment) {
 			out.printf("%8s", ""); //Location counter place holder
 			writeColumn(align.getMaxNameLength(), "."); //Place a dot in the name column
-			out.print(" " + c.getComment().trim());
+			out.print(" " + c.getComment());
 		} else {
 			out.printf("%04X    ", program.getLocationCounter()); //4 spaces 
 			writeColumn(align.getMaxLabelLength(), c.getLabel());
@@ -357,6 +357,7 @@ class ListingProgramWriter {
 					out.printf("%02X", b);
 				}
 			}
+			out.print(" " + c.getComment());
 		}
 		out.println();
 	}
@@ -1946,7 +1947,7 @@ class StartDirective extends AbstractCommand {
 
 	@Override
 	public String getArgument() {
-		return Integer.toString(start);
+		return " " + Integer.toString(start);
 	}
 }
 

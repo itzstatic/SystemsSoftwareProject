@@ -1,0 +1,2950 @@
+
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Stack;
+
+
+
+//Helps with the alignment of a listing file by storing maximum
+//lengths of certain interior columns (label, mnemonic, argument).
+//Just update the alignment with every command in the program
+class Alignment {
+	private int maxLineLength;
+	private int maxLabelLength;
+	private int maxNameLength;
+	private int maxArgumentLength;
+	
+	//Updates the alignment information in light of the given command
+	public void update(Command c) {
+		maxLineLength = Math.max(maxLineLength, Integer.toString(c.getLine()).length());
+
+		String label = c.getLabel();
+		if (label != null) {
+			maxLabelLength = Math.max(maxLabelLength, label.length());
+		}
+		String name = c.getName();
+		if (name != null) {
+			maxNameLength = Math.max(maxNameLength, name.length());
+		}
+		String arg = c.getArgument();
+		if (arg != null) {
+			maxArgumentLength = Math.max(maxArgumentLength, arg.length());
+		}
+	}
+	
+	public int getMaxLineLength() {
+		return maxLineLength;
+	}
+	public int getMaxLabelLength() {
+		return maxLabelLength;
+	}
+	public int getMaxNameLength() {
+		return maxNameLength;
+	}
+	public int getMaxArgumentLength() {
+		return maxArgumentLength;
+	}
+}
+
+
+
+//Performs pass two by assembling various commands.
+class Assembler {
+	private Program program;
+	
+	public Assembler(Program program) {
+		this.program = program;
+	}
+	
+	public void assemble(Command c) {
+		//There's got to be a better way...
+		if (c instanceof EndDirective) assemble((EndDirective)c);
+		if (c instanceof BaseDirective) assemble((BaseDirective)c);
+		if (c instanceof NoBaseDirective) assemble((NoBaseDirective)c);
+		if (c instanceof WordDirective) assemble((WordDirective)c);
+		
+		if (c instanceof Format2Instruction) assemble((Format2Instruction)c);
+		if (c instanceof Format34Instruction) assemble((Format34Instruction)c);
+	}
+	
+	private void assemble(Format2Instruction c) {
+		String r1 = c.getRegisterOne();
+		String r2 = c.getRegisterTwo();
+		byte n = c.getNumber();
+		
+		Byte b1 = null;
+		if (r1 != null) {
+			b1 = Global.REGISTERS.get(r1);
+		}
+		Byte b2 = null;
+		if (r2 != null) {
+			b2 = Global.REGISTERS.get(r2);
+		}
+		
+		if (r1 == null && r2 == null) {
+			c.setArgument(n); 								//Format2N
+		} else if (r1 == null && r2 != null) {
+			c.setArgument(b2.byteValue(), (byte)(n - 1)); 	//Format2RN
+		} else if (r1 != null && r2 == null) {
+			c.setArgument(b1.byteValue()); 					//Format2R
+		} else { //r1 != null && r2 != null
+			c.setArgument(b1.byteValue(), b2.byteValue()); 	//Format2RR
+		}
+	}
+	
+	private void assemble(Format34Instruction c) {
+		Expression expr = c.getExpression();
+		//Possibly, if the expression value occupies more than 12bits, 
+		//then one might decide to use 15 bit SIC target
+		//Format 4 instructions are big enough for virtually everything, though 
+		if (expr.isAbsolute() || c.isExtended()) {
+			c.setAddressMode(AddressMode.ABSOLUTE);
+			c.setArgument(expr.getValue());
+			//Modification records will be generated for extended relative 
+		//High-net-sign expression, not extended
+		} else if (Math.abs(expr.getNetSign()) > 1) {
+			throw new AssembleError(c, "More than 1 unpaired relative term and not extended");
+		//Relative expression, not extended
+		} else {
+			int argument; //Either PC Disp or Base Disp
+			int target = expr.getValue();
+			//Try: PC relative
+			//(PC) + argument = target
+			argument = target - 3 - program.getLocationCounter();
+			if (-2048 <= argument && argument < 2048) {
+				c.setAddressMode(AddressMode.PC);
+				c.setArgument(argument);
+				return;
+			}
+			
+			//Ensure base is enabled
+			if (!program.isBaseEnabled()) {
+				throw new AssembleError(c, "PC out of range and base disabled");
+			}
+			
+			//Try: Base relative
+			//(B) + argument = target
+			argument = target - program.getBase();
+			if (0 <= argument && argument < 4096) {
+				c.setAddressMode(AddressMode.BASE);
+				c.setArgument(argument);
+				return;
+			}		
+			throw new AssembleError(c, "Base out of range and not extended");
+		}
+	}
+
+	private void assemble(WordDirective c) {
+		c.setWord(c.getExpression().getValue());
+	}
+
+	private void assemble(EndDirective c) {
+		program.setFirst(c.getExpression().getValue());
+	}
+
+	private void assemble(BaseDirective c) {
+		program.setBase(c.getExpression().getValue());
+	}
+
+	private void assemble(NoBaseDirective c) {
+		program.disableBase();
+	}
+	
+}
+
+
+//Represents the grammatical structure of an instruction's arguments. 
+//Includes formats more detailed than just formats 1-4.
+public enum Format {
+	FORMAT1, //Without arguments
+	FORMAT2R, //With 1 register argument (0 - 15)
+	FORMAT2N, //With 1 numerical argument (1 - 16)
+	FORMAT2RR, //With two register arguments (0 - 15)
+	FORMAT2RN, //With 1 register (0 - 15) and 1 numerical (1 - 16) argument
+	FORMAT34, //Without arguments (RSUB)
+	FORMAT34M, //With 1 expression argument
+}
+
+
+
+//Contains static hashtables used for assembly
+class Global {
+	private Global() {}
+	
+	public static final Map<String, Mnemonic> OPTAB = new HashMap<>();
+	public static final Map<String, Byte> REGISTERS = new HashMap<>();
+	
+	
+	//Convenience method so the caller does not have to write out the name twice, 
+	//or cast the opcode to byte
+	private static void putInstruction(String name, int opcode, Format format) {
+		OPTAB.put(name, new Mnemonic(name, (byte)opcode, format));
+	}
+	
+	//Convenience method so the caller does not have to write out the name twice
+	private static void putDirective(String name) {
+		OPTAB.put(name, new Mnemonic(name, (byte)0, null));
+	}
+	
+	//Convenience method so the caller does not have to write out the name twice
+	private static void putRegister(String name, int code) {
+		REGISTERS.put(name, (byte)code);
+	}
+	
+	static {
+		putInstruction("LDA", 	0x00, Format.FORMAT34M);
+		putInstruction("LDX", 	0x04, Format.FORMAT34M);
+		putInstruction("LDL", 	0x08, Format.FORMAT34M);
+		putInstruction("STA", 	0x0C, Format.FORMAT34M);
+		putInstruction("STX", 	0x10, Format.FORMAT34M);
+		putInstruction("STL", 	0x14, Format.FORMAT34M);
+		putInstruction("ADD", 	0x18, Format.FORMAT34M);
+		putInstruction("SUB", 	0x1C, Format.FORMAT34M);
+		putInstruction("MUL", 	0x20, Format.FORMAT34M);
+		putInstruction("DIV", 	0x24, Format.FORMAT34M);
+		putInstruction("COMP", 	0x28, Format.FORMAT34M);
+		putInstruction("TIX", 	0x2C, Format.FORMAT34M);
+		putInstruction("JEQ", 	0x30, Format.FORMAT34M);
+		putInstruction("JGT", 	0x34, Format.FORMAT34M);
+		putInstruction("JLT", 	0x38, Format.FORMAT34M);
+		putInstruction("J", 	0x3C, Format.FORMAT34M);
+		putInstruction("AND", 	0x40, Format.FORMAT34M);
+		putInstruction("OR", 	0x44, Format.FORMAT34M);
+		putInstruction("JSUB", 	0x48, Format.FORMAT34M);
+		putInstruction("RSUB", 	0x4C, Format.FORMAT34);
+		putInstruction("LDCH", 	0x50, Format.FORMAT34M);
+		putInstruction("STCH", 	0x54, Format.FORMAT34M);
+		putInstruction("ADDF", 	0x58, Format.FORMAT34M);
+		putInstruction("SUBF", 	0x5C, Format.FORMAT34M);
+		putInstruction("MULF", 	0x60, Format.FORMAT34M);
+		putInstruction("DIVF", 	0x64, Format.FORMAT34M);
+		putInstruction("LDB", 	0x68, Format.FORMAT34M);
+		putInstruction("LDS", 	0x6C, Format.FORMAT34M);
+		putInstruction("LDF", 	0x70, Format.FORMAT34M);
+		putInstruction("LDT", 	0x74, Format.FORMAT34M);
+		putInstruction("STB", 	0x78, Format.FORMAT34M);
+		putInstruction("STS", 	0x7C, Format.FORMAT34M);
+		putInstruction("STF", 	0x80, Format.FORMAT34M);
+		putInstruction("STT", 	0x84, Format.FORMAT34M);
+		putInstruction("COMPF", 0x88, Format.FORMAT34M);
+		//No opcode 8C
+		putInstruction("ADDR", 	0x90, Format.FORMAT2RR);
+		putInstruction("SUBR", 	0x94, Format.FORMAT2RR);
+		putInstruction("MULR", 	0x98, Format.FORMAT2RR);
+		putInstruction("DIVR", 	0x9C, Format.FORMAT2RR);
+		putInstruction("COMPR", 0xA0, Format.FORMAT2RR);
+		putInstruction("SHIFTL",0xA4, Format.FORMAT2RN);
+		putInstruction("SHIFTR",0xA8, Format.FORMAT2RN);
+		putInstruction("RMO", 	0xAC, Format.FORMAT2RR);
+		putInstruction("SVC", 	0xB0, Format.FORMAT2N);
+		putInstruction("CLEAR", 0xB4, Format.FORMAT2R);
+		putInstruction("TIXR", 	0xB8, Format.FORMAT2R);
+		//No opcode BC
+		putInstruction("FLOAT", 0xC0, Format.FORMAT1);
+		putInstruction("FIX", 	0xC4, Format.FORMAT1);
+		putInstruction("NORM", 	0xC8, Format.FORMAT1);
+		//No opcode CC
+		putInstruction("LPS", 	0xD0, Format.FORMAT34M);
+		putInstruction("STI", 	0xD4, Format.FORMAT34M);
+		putInstruction("RD", 	0xD8, Format.FORMAT34M);
+		putInstruction("WD", 	0xDC, Format.FORMAT34M);
+		putInstruction("TD", 	0xE0, Format.FORMAT34M);
+		//No opcode E4
+		putInstruction("STSW", 	0xE8, Format.FORMAT34M);
+		putInstruction("SSK", 	0xEC, Format.FORMAT34M);
+		putInstruction("SIO", 	0xF0, Format.FORMAT1);
+		putInstruction("HIO", 	0xF4, Format.FORMAT1);
+		putInstruction("TIO", 	0xF8, Format.FORMAT1);
+		
+		//Implemented directives
+		putDirective("START");
+		putDirective("END");
+		putDirective("BASE");
+		putDirective("NOBASE");
+		putDirective("RESB");
+		putDirective("RESW");
+		putDirective("BYTE");
+		putDirective("WORD");
+		putDirective("ORG");
+		putDirective("EXTREF");
+		putDirective("EXTDEF");
+		//Not implemented (Parser will recognize which are and aren't)
+		putDirective("LTORG");
+		putDirective("EQU");
+		putDirective("CSECT");
+		putDirective("USE");
+		
+		putRegister("A", 0);
+		putRegister("X", 1);
+		putRegister("L", 2);
+		putRegister("S", 4);
+		putRegister("T", 5);
+		putRegister("F", 6);
+		//7 is probably the CC register
+		putRegister("PC", 8);
+		putRegister("SW", 9);
+	}
+}
+
+
+//Represents an instruction or directive mnemonic containing an abbreviation (name),
+//a 1-byte opcode, and a format
+//Instructions contain name and opcode and Format as expected.
+//Directives contain a null format and meaningless opcode. 
+class Mnemonic {
+	private String name;
+	private byte opcode;
+	private Format format;
+	
+	public Mnemonic(String name, byte opcode, Format format) {
+		this.name = name;
+		this.opcode = opcode;
+		this.format = format;
+	}
+	
+	public String getName() {
+		return name;
+	}
+	
+	public byte getOpcode() {
+		return opcode;
+	}
+	
+	public Format getFormat() {
+		return format;
+	}
+}
+
+
+
+
+//Prints a listing file to a PrintWriter
+class ListingProgramWriter {
+	
+	private Program program;
+	private Alignment align;
+	private PrintWriter out;
+	
+	public ListingProgramWriter(Program program, Alignment align, PrintWriter out) {
+		this.program = program;
+		this.align = align;
+		this.out = out;
+	}
+	
+	//Appends the given command to the listing
+	public void write(Command c) {
+		writeColumn(align.getMaxLineLength(), c.getLine());
+		if (c instanceof Comment) {
+			out.printf("%8s", ""); //Location counter place holder
+			writeColumn(align.getMaxNameLength(), "."); //Place a dot in the name column
+			out.print(" " + c.getComment().trim());
+		} else {
+			out.printf("%04X    ", program.getLocationCounter()); //4 spaces 
+			writeColumn(align.getMaxLabelLength(), c.getLabel());
+			writeColumn(align.getMaxNameLength(), c.getName());
+			writeColumn(align.getMaxArgumentLength(), c.getArgument());
+			if (c instanceof WriteableCommand) {
+				byte[] buffer = new byte[c.getSize()];
+				((WriteableCommand) c).write(buffer, 0);
+				for (byte b : buffer) {
+					out.printf("%02X", b);
+				}
+			}
+		}
+		out.println();
+	}
+	
+	private void writeColumn(int width, int i) {
+		String format = "%" + width + "d    "; //4 spaces
+		out.printf(format, i);
+	}
+	
+	private void writeColumn(int width, String s) {
+		String format = "%-" + width + "s "; //1 space
+		if (s == null) s = ""; //Don't print null
+		out.printf(format, s);
+	}
+}
+
+
+
+
+class DefineRecord {
+	//6 is the maximum number of definition-address pair per define record
+	private Symbol[] symbols = new Symbol[6];
+	private int size;
+	
+	//Attempts to add the symbol to the define record, otherwise,
+	//returns false if the add failed
+	public boolean add(Symbol symbol) {
+		if (size < 6) {
+			symbols[size++] = symbol;
+			return true;
+		}
+		return false;
+	}
+		
+	public void write(PrintWriter out) {
+		out.print('D');
+		for (int i = 0; i < size; i++) {
+			if (symbols[i] == null) {
+				System.out.println(i + " out of " + size);
+				continue;
+			}
+			out.printf("%-6s", symbols[i].getName());
+			out.printf("%06X", symbols[i].getValue());
+		}
+		out.println();
+	}	
+}
+
+
+
+class ModificationRecord {
+	private int start;
+	private int stride;
+	private char sign;
+	private String symbol;
+	
+	//Creates a mod record for an external symbol
+	public ModificationRecord(int start, int stride, String symbol, boolean isPositive) {
+		this.start = start;
+		this.stride = stride;
+		this.sign = isPositive ? '+' : '-';
+		this.symbol = symbol;
+	}
+	
+	public void write(PrintWriter out) {
+		out.print('M');
+		out.printf("%06X", start);
+		out.printf("%02X", stride);
+		out.print(sign);
+		out.printf("%-6s", symbol);
+		out.println();
+	}
+}
+
+
+
+class ReferRecord {
+	
+	//12 is the maximum number of references per refer record
+	private String[] symbols = new String[12];
+	private int size;
+	
+	//Attempts to add the symbol to the refer record, otherwise,
+	//returns false if the add failed
+	public boolean add(String symbol) {
+		if (size < 12) {
+			symbols[size++] = symbol;
+			return true;
+		}
+		return false;
+	}
+	
+	public void write(PrintWriter out) {
+		out.print('R');
+		for (int i = 0; i < size; i++) {
+			out.printf("%-6s", symbols[i]);
+		}
+		out.println();
+	}
+}
+
+
+
+
+class TextRecord {
+	
+	private int start;
+	private int size;
+	private byte[] buffer = new byte[30]; //For instructions
+
+	//Creates a text record starting at the given address
+	public TextRecord(int start) {
+		this.start = start;
+	}
+	
+	//Attempts to add the command to this record, and returns whether 
+	//the add was successful
+	public boolean add(WriteableCommand c) {
+		if (size + c.getSize() > 30) {
+			return false; //Too large of a command
+		}
+		c.write(buffer, size);
+		size += c.getSize();
+		return true;
+	}
+	
+	public boolean isEmpty() {
+		return size == 0;
+	}
+	
+	public void write(PrintWriter out) {
+		out.print('T');
+		out.printf("%06X", start);
+		out.printf("%02X", size);
+		for (int i = 0; i < size; i++) {
+			out.printf("%02X", buffer[i]);
+		}
+		out.println();
+	}
+}
+
+
+
+
+//Prints an object program to a PrintWriter.
+class ObjectProgramWriter {
+	
+	private Program program;
+	private PrintWriter out;
+	private List<ModificationRecord> mods = new ArrayList<>();
+	
+	private TextRecord text; //Current text record
+	
+	public ObjectProgramWriter(Program program, PrintWriter out) {
+		this.program = program;
+		this.out = out;
+	}
+	
+	public void writeHeaderReferAndDefineRecords() {
+		//Write the header record
+		out.print('H');
+		out.printf("%-6s", program.getName());
+		out.printf("%06X", program.getStart());
+		out.printf("%06X", program.getSize());
+		out.println();
+		//Write define records
+		DefineRecord define = null;
+		for (Symbol def : program.getExternalDefinitions()) {
+			if (define == null) {
+				define = new DefineRecord();
+			}
+			if (!define.add(def)) {
+				define.write(out);
+				define = new DefineRecord();
+				define.add(def); //This call should always succeed
+			}
+		}
+		//Write the final Define record
+		if (define != null) {
+			define.write(out);
+		}
+		
+		//Write refer records
+		ReferRecord refer = null;
+		for (String ref : program.getExternalReferences()) {
+			if (refer == null) {
+				refer = new ReferRecord();
+			}
+			if (!refer.add(ref)) {
+				refer.write(out);
+				refer = new ReferRecord();
+				refer.add(ref); //This call should always succeed
+			}
+		}
+		//Write the final record
+		if (refer != null) {
+			refer.write(out);
+		}
+	}
+	
+	//Writes the command to the object program
+	public void write(Command c) {
+		//Resw/Resb and any directive that increments location counter (size > 0)
+		//But does not write code (not a WriteableCommand)
+		if (c.getSize() > 0 && !(c instanceof WriteableCommand)) {
+			writeCurrentTextRecord();
+		}
+		
+		if (c instanceof WriteableCommand) {
+			write((WriteableCommand) c);
+		}
+		
+		if (c instanceof ModifiableCommand) {
+			modify((ModifiableCommand) c);
+		}
+	}
+	
+	//Adds the command to the current text record, writing the text record if required
+	private void write(WriteableCommand c) {
+		if (text == null) {
+			text = new TextRecord(program.getLocationCounter());
+		}
+		
+		if (!text.add(c)) {
+			text.write(out);
+			text = new TextRecord(program.getLocationCounter());
+			text.add(c); //Will always succeed
+		}
+	}
+	
+	//Forces the object program to write the current text record
+	private void writeCurrentTextRecord() {
+		if (text != null) {
+			text.write(out);
+			text = null;
+		}
+	}
+	
+	//Adds modification records associated with the expression in the
+	//given command; those records will be appended at the end
+	private void modify(ModifiableCommand c) {
+		Expression expr = c.getExpression();
+		//Only modify relative expressions
+		if (expr.isAbsolute()) {
+			return; 
+		}
+		//Relative addressing (probably unextended) Format34 instructions require no modification
+		if (c instanceof Format34Instruction && !((Format34Instruction) c).isAbsoluteAddressing()) {
+			return;
+		}
+		
+		//Of the mod record
+		int start = program.getLocationCounter() + c.getOffset();
+		int stride = c.getStride();
+		
+		for (Term s : expr.getExternalSymbols()) {
+			mods.add(new ModificationRecord(start, stride, s.getSymbol().getName(), s.isPositive()));
+		}
+		//Program relative modification record iff |netSign| == 1
+		int netSign = expr.getNetSign();
+		int abs = Math.abs(netSign); 
+		//If >1, then there would require multiple program relative modification records
+		//Is this even allowed? 
+		for (int i = 0; i < abs; i++) {
+			mods.add(new ModificationRecord(start, stride, program.getName(), netSign > 0));
+		}
+		//If 0, then no record
+	}
+	
+	public void writeModificationAndEndRecords() {
+		writeCurrentTextRecord();
+		
+		if (program.isRelocatable()) {
+			for (ModificationRecord mod : mods) {
+				mod.write(out);
+			}
+		}
+		
+		out.print('E');
+		out.printf("%06X", program.getFirst());
+		out.println();
+	}
+}
+
+
+
+
+class AssembleError extends RuntimeException {
+
+	private static final long serialVersionUID = 5125145320795821947L;
+
+	private AssembleError(int row, int col, String message) {
+		super("Row: " + row + "; Col: " + col + "; " + message);
+	}
+	
+	public AssembleError(Locatable l, String message) {
+		this(l.getRow(), l.getCol(), message);
+	}
+	
+	public AssembleError(Command c, String message) {
+		this(c.getLine(), 1, message);
+	}
+}
+
+
+
+//Reads many characters at a time and creates tokens
+class Lexer implements Locatable {
+	
+	private static final String SIMPLE_CHARACTERS = "#@,+-*/()";
+	
+	private Scanner scanner;
+	//For peaking: If null, then a call to peek() needs to invoke next(),
+	//and then make buffer non-null.
+	//Otherwise, a call to peek() will yield the buffer.
+	private Token buffer; 
+	
+	//Creates a lexer from a buffered reader. The reader can be from a file
+	//Or from the standard in, etc.
+	public Lexer(Scanner scanner) {
+		this.scanner = scanner;
+	}
+
+	@Override
+	public int getRow() {
+		return scanner.getRow();
+	}
+	
+	@Override
+	public int getCol() {
+		return scanner.getCol();
+	}
+	
+	private boolean isLineSeparator(char c) {
+		return c == '\n' || c == '\r';
+	}
+	
+	private boolean isWhitespace(char c) {
+		return c == '\t' || c == ' ';
+	}
+	
+	private boolean isSimple(char c) {
+		return SIMPLE_CHARACTERS.contains(Character.toString(c));
+	}
+	
+	//Gets the next token and consumes it.
+	//Throws an exception if there is no available token.
+	//Never returns null
+	public Token next() {
+		//If buffer is not null, then there was a call to peek() AFTER the last 
+		//call to next(). in other words, only consume the buffer
+		if (buffer != null) {
+			Token result = buffer;
+			buffer = null;
+			return result;
+		}
+		char c;
+		int row = scanner.getRow();
+		int col = scanner.getCol();
+		if ((c = Character.toUpperCase(scanner.next())) == Scanner.EOS) {
+			throw new AssembleError(scanner, "Expected token not end of stream");	
+		}
+		if (isWhitespace(c)) {
+			//Many sequential whitespace chars will yield a single whitespace token
+			while (isWhitespace(c = scanner.peek())) {
+				scanner.next();
+			}
+			return Token.whitespace(row, col);
+		}
+		if (isLineSeparator(c)) {
+			Token result = Token.newline(row, col);
+			row++;
+			col = 1;
+			return result;
+		}
+		if (Character.isDigit(c)) {
+			StringBuilder number = new StringBuilder();
+			number.append(c);
+			//read all digits
+			while (Character.isDigit(c = Character.toUpperCase(scanner.peek())) 
+				&& c != Scanner.EOS) {
+				scanner.next();
+				number.append(c);
+			}
+			//c is the first non-digit
+			//All characters of number satisfied isDigit, so parseInt should
+			//never throw an exception
+			return Token.number(row, col, Integer.parseInt(number.toString()));
+		}
+		if (c == '.') {
+			StringBuilder comment = new StringBuilder();
+			//read until the next line
+			while (!isLineSeparator(c = Character.toUpperCase(scanner.peek())) 
+				&& c != Scanner.EOS) {
+				scanner.next();
+				comment.append(c);
+			}
+			return Token.comment(row, col, comment.toString());
+		}
+		if (Character.isLetter(c) || c == '_') {
+			StringBuilder string = new StringBuilder();
+			if (scanner.peek() == '\'') {
+				scanner.next(); //Consume the open quote
+				//A data instead
+				boolean isAscii = c == 'C'; //Otherwise, is hex
+				//Read until the next quote
+				//Don't upper case
+				while ((c = scanner.next()) != '\'' && c != Scanner.EOS) {
+					string.append(c);
+				}
+				//c was not a quote
+				if (c == Scanner.EOS) {
+					throw new AssembleError(scanner, "Expected ' not end of stream");
+				}
+				//Create the data object
+				Data data;
+				if (isAscii) {
+					data = new AsciiData(string.toString());
+				} else if (string.length() % 2 != 0) {
+					//Odd lengthed hex data
+					throw new AssembleError(scanner, "Hex data must be of even legnth");
+				} else {
+					data = new HexData(string.toString());
+				}
+				return Token.data(row, col, data);
+			}
+			string.append(c);
+			while ((Character.isLetter(c = Character.toUpperCase(scanner.peek())) 
+				|| Character.isDigit(c) || c == '_') && c != Scanner.EOS) {
+				scanner.next();
+				string.append(c);
+			}
+			String s = string.toString();
+			
+			//Check if the string is a mnemonic
+			Mnemonic mnemonic = Global.OPTAB.get(s);
+			if (mnemonic != null) {
+				return Token.mnemonic(row, col, mnemonic);
+			}
+			
+			return Token.symbol(row, col, string.toString());
+		}
+		if(isSimple(c)) {
+			return Token.simple(row, col, c);
+		}
+		throw new AssembleError(scanner, "Bad character " + c);
+	}
+	
+	//Gets the next token but doesn't consume it
+	//Returns null if there are no more tokens
+	public Token peek() {
+		if (buffer == null) {
+			if (scanner.peek() == Scanner.EOS) {
+				return null;
+			}
+			return buffer = next();
+		} 
+		return buffer;
+	}
+	
+	//Returns whether the next token is simple and matches the given character
+	//If this method returns true, then the token is consumed.
+	public boolean accept(char c) {
+		Token token = peek();
+		boolean result = token != null && token.is(Token.Type.SIMPLE) && token.is(c);
+		if (result) {
+			next();
+		}
+		return result;
+	}
+	
+	//Return whether the next token is of the given type and returns the token if possible
+	//If this method returns null, then the token was not of the given type
+	private Token accept(Token.Type type) {
+		Token result = peek();
+		if (result != null && result.is(type)) {
+			next();
+			return result;
+		}
+		return null;
+	}
+	
+	public boolean acceptWhitespace() {
+		return accept(Token.Type.WHITESPACE) != null;
+	}
+	
+	public boolean acceptNewline() {
+		return accept(Token.Type.NEWLINE) != null;
+	}
+	
+	public String acceptComment() {
+		Token token = accept(Token.Type.COMMENT);
+		if (token != null) {
+			return token.asComment();
+		}
+		return null;
+	}
+	
+	public String acceptSymbol() {
+		Token token = accept(Token.Type.SYMBOL);
+		if (token != null) {
+			return token.asSymbol();
+		}
+		return null;
+	}
+	
+	public Integer acceptNumber() {
+		Token token = accept(Token.Type.NUMBER);
+		if (token != null) {
+			return token.asNumber();
+		}
+		return null;
+	}
+	
+	//Parses the next token and returns, or throws an exception if the next token was not
+	//a simple token, or did not match the given character.
+	public void expect(char c) {
+		Token token = next();
+		if (!token.is(Token.Type.SIMPLE) || !token.is(c)) {
+			throw new AssembleError(token, "Expected " + c + " not " + token);
+		}
+	}
+	
+	//Parses the next token and returns it, or throws an exception if the next token was 
+	//not of the given type
+	private Token expect(Token.Type type) {
+		Token result = next();
+		if (!result.is(type)) {
+			throw new AssembleError(result, "Expected " + type + " not " + result);
+		}
+		return result;
+	}
+	
+	public void expectWhitespace() {
+		expect(Token.Type.WHITESPACE);
+	}
+	
+	public Mnemonic expectMnemonic() {
+		return expect(Token.Type.MNEMONIC).asMnemonic();
+	}
+	
+	public int expectNumber() {
+		return expect(Token.Type.NUMBER).asNumber();
+	}
+
+	public String expectSymbol() {
+		return expect(Token.Type.SYMBOL).asSymbol();
+	}
+	
+	public Data expectData() {
+		return expect(Token.Type.DATA).asData();
+	}
+}
+
+
+public interface Locatable {
+	int getRow();
+	int getCol();
+}
+
+
+
+
+//Calls the lexer repeatedly in order to create Commands.
+class Parser implements Locatable {
+	
+	private Lexer lexer;
+	
+	//Creates a parser from the reader
+	public Parser(Lexer lexer) {
+		this.lexer = lexer;
+	}
+	
+	//Returns the next command from the source, or, null if there
+	//are no commands left and the parsing is finished
+	public Command next() {
+		//Advance to the beginning of the next useful token
+		while (lexer.acceptWhitespace() || lexer.acceptNewline());
+	
+		//Check for end
+		if (lexer.peek() == null) {
+			return null;
+		}
+		
+		Command result;
+		//Then, get the line number and begin parsing
+		int line = lexer.getRow();
+		
+		//Comment only on this line
+		String comment = lexer.acceptComment();
+		if (comment != null) {
+			result = new Comment();
+		//Non-comment that has a label and mnemonic
+		} else {
+			//See if there's a label
+			String label = lexer.acceptSymbol();
+			if (label != null) {
+				lexer.expectWhitespace();
+			}
+			
+			//If it's extended...
+			boolean extended = lexer.accept('+');
+			
+			//Get the mnemonic
+			Mnemonic mnemonic = lexer.expectMnemonic();
+			
+			//Ensure that the source only extends a F34 mnemonic
+			//This implies someone can extend an RSUB (The only F34 mnemonic)
+			if (extended && mnemonic.getFormat() != Format.FORMAT34 
+				&& mnemonic.getFormat() != Format.FORMAT34M) {
+				throw new AssembleError(lexer, "Cannot extend mnemonic " + mnemonic);
+			}
+			
+			//Parse the rest of it, which depends on the Mnemonic itself
+			if (mnemonic.getFormat() == null) {
+				//Directive
+				switch(mnemonic.getName()) {
+				case "START": result = parseStartDirective(); break;
+				case "END": result = parseEndDirective(); break;
+				case "RESB": result = parseResbDirective(); break;
+				case "RESW": result = parseReswDirective(); break;
+				case "BYTE": result = parseByteDirective(); break;
+				case "WORD": result = parseWordDirective(); break;
+				case "BASE": result = parseBaseDirective(); break;
+				case "EXTDEF": result = parseExtdefDirective(); break;
+				case "EXTREF": result = parseExtrefDirective(); break;
+				case "ORG": result = parseOrgDirective(); break;
+				default: throw new AssembleError(lexer, "Directive " + mnemonic.getName() + " not implemented");
+				}
+			} else {
+				//Instruction
+				switch(mnemonic.getFormat()) {
+				case FORMAT1: result = new Format1Instruction(mnemonic); break;
+				case FORMAT2N: result = parseFormat2NCommand(mnemonic); break;
+				case FORMAT2R: result = parseFormat2RCommand(mnemonic); break;
+				case FORMAT2RN: result = parseFormat2RNCommand(mnemonic); break;
+				case FORMAT2RR: result = parseFormat2RRCommand(mnemonic); break;
+				case FORMAT34: result = new Format34Instruction(extended, mnemonic); break;
+				case FORMAT34M: result = parseFormat34MCommand(extended, mnemonic); break;
+				default: throw new IllegalStateException(mnemonic.toString());
+				}
+			}
+			
+			result.setLabel(label);
+			//Get all whitespace until comment
+			//Or no whitespace separating the comment from the rest of the command
+			while (lexer.acceptWhitespace());
+			
+			comment = lexer.acceptComment();
+		}
+		
+		//Get all the whitespace until newline or end
+		while (lexer.acceptWhitespace());
+		
+		//If there's not newline, but still a token, then complain!
+		if (!lexer.acceptNewline() && lexer.peek() != null) {
+			throw new AssembleError(lexer, "Expected newline or end of stream not " + lexer.peek());
+		}
+		result.setLine(line);
+		result.setComment(comment);
+		return result;
+	}
+	
+	//Precondition: mnemonic.getFormat() == Format.FORMAT2N
+	//Post condition: do not consume the new line at the end of the command.
+	//that new line is consumed by next().
+	//Likewise for related parse methods
+	private Command parseFormat2NCommand(Mnemonic mnemonic) {
+		lexer.expectWhitespace();
+		int n = lexer.expectNumber();
+		return new Format2Instruction(mnemonic, (byte)n);
+	}
+	
+	private Command parseFormat2RCommand(Mnemonic mnemonic) {
+		lexer.expectWhitespace();
+		String r = lexer.expectSymbol();
+		return new Format2Instruction(mnemonic, r);
+	}
+	
+	private Command parseFormat2RRCommand(Mnemonic mnemonic) {
+		lexer.expectWhitespace();
+		String r1 = lexer.expectSymbol();
+		lexer.expect(',');
+		String r2 = lexer.expectSymbol();
+		
+		return new Format2Instruction(mnemonic, r1, r2);
+	}
+	
+	private Command parseFormat2RNCommand(Mnemonic mnemonic) {
+		lexer.expectWhitespace();
+		String r = lexer.expectSymbol();
+		lexer.expect(',');
+		int n = lexer.expectNumber();
+		return new Format2Instruction(mnemonic, r, (byte)n);
+	}
+	
+	private Command parseFormat34MCommand(boolean extended, Mnemonic mnemonic) {
+		lexer.expectWhitespace();
+		
+		//Figure out what target mode
+		TargetMode target;
+		if (lexer.accept('#')) {
+			target = TargetMode.IMMEDIATE;
+		} else if (lexer.accept('@')) {
+			target = TargetMode.INDIRECT;
+		} else {
+			//XE Assembler NEVER uses SIMPLE, because that is ni = 00.
+			target = TargetMode.SIMPLE_XE;
+		}
+		
+		//Get the operand
+		Expression expr = parseExpression();
+		
+		boolean indexed = false;
+		//See if it's indexed or not
+		if (lexer.accept(',')) {
+			String x = lexer.expectSymbol();
+			if (!x.equals("X")) {
+				throw new AssembleError(lexer, "Expected X not " + x);
+			}
+			indexed = true;
+		}
+		
+		return new Format34Instruction(extended, mnemonic, target, expr, indexed);
+	}
+	
+	//Precondition: START mnemonic token was already consumed.
+	//Postcondition: Do not consume the new line at the end. That is consumed by next()
+	//Likewise for other parse...Directive methods
+	private Command parseStartDirective() {
+		lexer.expectWhitespace();
+		int start = lexer.expectNumber();
+		return new StartDirective(start);
+	}
+	
+	private Command parseEndDirective() {
+		if (lexer.acceptWhitespace()) {
+			return new EndDirective(parseExpression());
+		}
+		return new EndDirective();
+	}
+	
+	private Command parseResbDirective() {
+		lexer.expectWhitespace();
+		int bytes = lexer.expectNumber();
+		return new ResbDirective(bytes);
+	}
+	
+	private Command parseReswDirective() {
+		lexer.expectWhitespace();
+		int words = lexer.expectNumber();
+		return new ReswDirective(words);
+	}
+	
+	private Command parseByteDirective() {
+		lexer.expectWhitespace();
+		Data data = lexer.expectData();
+		return new ByteDirective(data);
+	}
+	
+	private Command parseWordDirective() {
+		lexer.expectWhitespace();
+		return new WordDirective(parseExpression());
+	}
+	
+	private Command parseBaseDirective() {
+		lexer.expectWhitespace();
+		return new BaseDirective(parseExpression());
+	}
+	
+	private Command parseExtrefDirective() {
+		lexer.expectWhitespace();
+		List<String> symbols = new ArrayList<>();
+		do {
+			symbols.add(lexer.expectSymbol());
+		} while (lexer.accept(','));
+		return new ExtrefDirective(symbols);
+	}
+	
+	private Command parseExtdefDirective() {
+		lexer.expectWhitespace();
+		List<String> symbols = new ArrayList<>();
+		do {
+			symbols.add(lexer.expectSymbol());
+		} while (lexer.accept(','));
+		return new ExtdefDirective(symbols);
+	}
+	
+	private Command parseOrgDirective() {
+		lexer.expectWhitespace();
+		return new OrgDirective(parseExpression());
+	}
+	
+	//Attempts to parse an expression. Will stop parsing when the lexer reaches a newline
+	//token, a comment token, or an illegal token. Throws an exception if an illegal token 
+	//is reached. Implements Dijkstra's Shunting-Yard Algorithm to turn an infix
+	//arithmetic expression into a syntax tree
+	public Expression parseExpression() {
+		Stack<ExpressionNode> nodes = new Stack<>();
+		//Null element in operators indicates parentheses
+		Stack<ExpressionOperator.Type> operators = new Stack<>();
+		//This flag toggles between tokens. It is required to distinguish star (*) as a
+		//multiplication operator versus as a location counter operand.
+		boolean expectsOperator = false; //Initially expect a value
+		//While there are tokens to be read
+		while (lexer.peek() != null) {
+			//System.out.println("OPERATORS: " + operators);
+			//System.out.println("OPERANDS: " + nodes);
+			if (lexer.acceptWhitespace()) {
+				continue;
+			}
+			if (expectsOperator) {
+				ExpressionOperator.Type operator;
+				//Read the operator
+				if (lexer.accept('+')) {
+					operator = ExpressionOperator.Type.ADD;
+				} else if (lexer.accept('-')) {
+					operator = ExpressionOperator.Type.SUB;
+				} else if (lexer.accept('*')) {
+					operator = ExpressionOperator.Type.MUL;
+				} else if (lexer.accept('/')) {
+					operator = ExpressionOperator.Type.DIV;
+				} else if (lexer.accept(')')) {
+					//Pop while the operator is not a parentheses (null)
+					while (!operators.isEmpty() && operators.peek() != null) {
+						//nodes stack reverses order of the nodes, so right pops off first
+						ExpressionNode right = nodes.pop();
+						ExpressionNode left = nodes.pop();
+						nodes.add(new ExpressionOperator(operators.pop(), left, right));
+					}
+					if (operators.isEmpty()) {
+						//Therefore, peek() never returned null, and there was no opening parentheses
+						throw new AssembleError(lexer, "Did not expect )");
+					}
+					//Otherwise, peek() returned null, so pop it
+					operators.pop();
+					continue; //<-- This is so bad; this is because no operator was read
+					//in this branch, so 1) I cannot push an operator onto the stack, and
+					//2) I should not toggle expectsOperator
+				} else {
+					//throw new ParseError(token, "Expected operator not " + token);
+					break;
+				}
+				//Output higher precedence operators into the tree
+				//If the stack top is ever null, then it is a parentheses on the stack.
+				//Wikipedia did not seem to say what to do, or if this scenario is possible.
+				while (!operators.isEmpty() && operators.peek() != null && 
+						operators.peek().getPrecedence() >= operator.getPrecedence()) {
+					ExpressionNode right = nodes.pop();
+					ExpressionNode left = nodes.pop();
+					nodes.add(new ExpressionOperator(operators.pop(), left, right));
+				}
+				operators.push(operator);
+			} else { //If the parser expects an operand
+				String symbol;
+				Integer number;
+				
+				if ((symbol = lexer.acceptSymbol()) != null) {
+					nodes.add(new ExpressionSymbol(symbol));
+				} else if ((number = lexer.acceptNumber()) != null) {
+					nodes.add(new ExpressionNumber(number));
+				} else if (lexer.accept('*')) {
+					nodes.add(new ExpressionStar());
+				} else if (lexer.accept('(')) {
+					operators.push(null);
+					continue; //Continue so that I do not toggle expectsOperator
+				} else {
+					//throw new ParseError(token, "Expected operand not " + token);
+					break;
+				}
+			}
+			expectsOperator = !expectsOperator;
+		}
+		//Pop all excess operators from the stack
+		while(!operators.isEmpty()) {
+			ExpressionOperator.Type operator = operators.pop();
+			//If a parentheses was found on the stack
+			if (operator == null) {
+				throw new AssembleError(lexer, "Unbalanced parentheses");
+			}
+			//Ensure left is the first dequeue
+			//Pop operator into nodes
+			//nodes stack reverses order of the nodes, so right pops off first
+			ExpressionNode right = nodes.pop();
+			ExpressionNode left = nodes.pop();
+			nodes.add(new ExpressionOperator(operator, left, right));
+		}
+		return new Expression(nodes.pop());
+	}
+
+	@Override
+	public int getRow() {
+		return lexer.getRow();
+	}
+
+	@Override
+	public int getCol() {
+		return lexer.getCol();
+	}
+}
+
+
+
+//Yields a character stream, and keeps track of location
+//in the source code. Also, \r\n, microsoft's line terminator, 
+//will be yielded as a single character \n.
+class Scanner implements Locatable {
+	
+	public static final char EOS = (char)-1;
+	
+	private BufferedReader reader;
+	private int row = 1;
+	private int col = 1;
+	
+	public Scanner(BufferedReader reader) {
+		this.reader = reader;
+	}
+	
+	@Override
+	public int getRow() {
+		return row;
+	}
+	@Override
+	public int getCol() {
+		return col;
+	}
+	
+	//Consumes the next character, but see class comment for 
+	//special behavior for Microsoft line separator \r\n
+	public char next() {
+		try {
+			col++;
+			char c = (char)reader.read();
+			if (c == '\r' && peek() == '\n') {
+				//Microsoft line terminator:
+				reader.read(); //Consume the \n
+				c = '\n';
+			}
+			if (c == '\n' || c == '\r') {
+				row++;
+				col = 1;
+			}
+			return c;
+		} catch (IOException e) {
+			e.printStackTrace();
+			return EOS;
+		}
+	}
+	
+	//Gets, but does not consume, the next character. See special
+	//behavior for \r\n
+	public char peek() {
+		try {
+			reader.mark(1);
+			//Cache location, because next() could unpredictably change it
+			int oldRow = row;
+			int oldCol = col;
+			char c = next();
+			//Undo all side effects of next()
+			reader.reset();
+			row = oldRow;
+			col = oldCol;
+			return c;
+		} catch (IOException e) {
+			e.printStackTrace();
+			return EOS;
+		}
+	}
+}
+
+
+
+//Wraps a syntax element with its position in the source code
+class Token implements Locatable {
+	
+	private Object value;
+	//The actual type of value varies depending on token type:
+	//Number tokens contain a boxed Integer;
+	//Symbol and comment tokens contain a String;
+	//Simple tokens contain a boxed Character;
+	//Data tokens contain a Data object;
+	//Whitespace tokens contain a null pointer;
+	//Newline tokens contain a null pointer;
+	//Mnemonic tokens contain a Mnemonic object;
+	private Type type;
+	private int row;
+	private int col;
+	
+	//Helper constructor to reduce space
+	private Token(int row, int col, Type type, Object value) {
+		this.row = row;
+		this.col = col;
+		this.type = type;
+		this.value = value;
+	}
+	
+	//Constructor methods to create tokens
+	public static Token number(int row, int col, int num) {
+		return new Token(row, col, Type.NUMBER, num);
+	}
+	public static Token symbol(int row, int col, String symbol) {
+		return new Token(row, col, Type.SYMBOL, symbol);
+	}
+	public static Token comment(int row, int col, String comment) {
+		return new Token(row, col, Type.COMMENT, comment);
+	}
+	public static Token data(int row, int col, Data data) {
+		return new Token(row, col, Type.DATA, data);
+	}
+	public static Token mnemonic(int row, int col, Mnemonic mnemonic) {
+		return new Token(row, col, Type.MNEMONIC, mnemonic);
+	}
+	public static Token simple(int row, int col, char c) {
+		return new Token(row, col, Type.SIMPLE, c);
+	}
+	public static Token whitespace(int row, int col) {
+		return new Token(row, col, Type.WHITESPACE, null);
+	}
+	public static Token	newline(int row, int col) {
+		return new Token(row, col, Type.NEWLINE, null);
+	}
+	@Override
+	public int getRow() {
+		return row;
+	}
+	@Override
+	public int getCol() {
+		return col;
+	}
+	//as... methods not save to use until the caller has verified this token's Type
+	//because these might throw casting exceptions
+	public int asNumber() {
+		return ((Integer)value).intValue();
+	}
+	public String asSymbol() {
+		return (String) value;
+	}
+	public String asComment() {
+		return (String) value;
+	}
+	public Data asData() {
+		return (Data) value;
+	}
+	public Mnemonic asMnemonic() {
+		return (Mnemonic) value;
+	}
+	
+	public boolean is(char c) {
+		return ((Character)value).charValue() == c;
+	}
+	
+	public boolean is(Type t) {
+		return this.type == t;
+	}
+	
+	@Override
+	public String toString() {
+		switch(type) {
+		case NUMBER: return Integer.toString(asNumber());
+		case SYMBOL: return asSymbol();
+		case COMMENT: return asComment();
+		case DATA: return asData().toString();
+		case SIMPLE: return Character.toString((Character)value);
+		case WHITESPACE: return "whitespace";
+		case NEWLINE: return "newline";
+		case MNEMONIC: return asMnemonic().getName();
+		default: throw new IllegalStateException(type.toString());
+		}
+	}
+	
+	public enum Type {
+		NUMBER,
+		SYMBOL,
+		COMMENT,
+		DATA, //X'...' or C'...'
+		SIMPLE, //A simple token is one character
+		WHITESPACE,
+		NEWLINE, 
+		MNEMONIC
+	}
+}
+
+
+
+
+//Salim, Brandon Mathis, Brandon Mack
+class SicXeAssm {
+	
+	private Parser parser;
+	private Alignment align = new Alignment();
+	private Program program = new Program();
+	private List<Command> commands = new ArrayList<>();
+	
+	public SicXeAssm(BufferedReader reader) {
+		parser = new Parser(new Lexer(new Scanner(reader)));
+	}
+	
+	//Eval ORG and modify locctr
+	//Populate symtab with labels
+	public void passOne() {
+		Command c = parser.next();
+		if (c == null) {
+			return; //Empty program
+		}
+		
+		if (c instanceof StartDirective) {
+			//Can a program be nameless?
+			if (c.getLabel() == null) {
+				throw new AssembleError(c, "Expected program name");
+			}
+			program.setName(c.getLabel());
+			program.setStart(((StartDirective) c).getStart());
+		} else {
+			throw new AssembleError(c, "Expected START Directive");
+		}
+		
+		program.setLocationCounter(program.getStart());
+		do {
+			align.update(c);
+			commands.add(c);
+			//Modify locctr by org expr
+			if (c instanceof OrgDirective) {
+				((OrgDirective) c).getExpression().evaluate(c, program);
+				program.setLocationCounter(((OrgDirective) c).getExpression().getValue());
+			//Add extdef symbols
+			} else if (c instanceof ExtdefDirective) {
+				for (String def : ((ExtdefDirective) c).getSymbols()) {
+					program.addExternalDefintion(def);
+				}
+			//Add extref symbols
+			} else if (c instanceof ExtrefDirective) {
+				for (String ref : ((ExtrefDirective) c).getSymbols()) {
+					program.addExternalReference(ref);
+				}
+			}
+			//Add symbols to symtab
+			if (c.getLabel() != null) {
+				program.put(c.getLabel(), program.getLocationCounter(), false);
+			}
+			
+			//Increment locctr by size
+			program.incrementLocationCounter(c.getSize());
+			
+			if (c instanceof EndDirective) {
+				break;
+			}
+			
+			c = parser.next();
+		} while (c != null);
+		
+		//Loop terminated without an end directive
+		if (c == null) {
+			throw new AssembleError(parser, "Expected END Directive");
+		}
+	}
+	
+	//Eval all other expressions
+	//Assemble instructions and directives
+	//Write commands to listing
+	//Write commands to object file
+	public void passTwo(PrintWriter lst, PrintWriter obj) {
+		Assembler assembler = new Assembler(program);
+		ListingProgramWriter listing = new ListingProgramWriter(program, align, lst);
+		ObjectProgramWriter object = new ObjectProgramWriter(program, obj);
+		
+		//Reset location counter
+		program.setLocationCounter(program.getStart()); 
+		object.writeHeaderReferAndDefineRecords();
+		
+		for (Command c : commands) {
+			if (c instanceof ExpressionCommand) {
+				((ExpressionCommand) c).getExpression().evaluate(c, program);
+			}
+			assembler.assemble(c);
+			listing.write(c);
+			object.write(c);
+			if (c instanceof OrgDirective) {
+				program.setLocationCounter(((OrgDirective) c).getExpression().getValue());
+			}
+			program.incrementLocationCounter(c.getSize());
+		}
+		
+		object.writeModificationAndEndRecords();
+	}
+
+	
+	public static void main(String[] args) {
+		//Ensure there is one argument (file name)
+		if (args.length < 1) {
+			System.err.println("Requires file name!");
+			System.exit(1);
+		}
+		
+		//Ensure file exists with the name
+		String fileName = args[0];
+		BufferedReader file = null;
+		try {
+			file = new BufferedReader(new FileReader(fileName));
+		} catch (FileNotFoundException e) {
+			System.err.println("Cannot open file '" + fileName + "'!");
+			System.exit(2);
+		}
+		//Do pass one
+		SicXeAssm assm = new SicXeAssm(file);
+		assm.passOne();
+		//Open .lst and .obj files
+		PrintWriter lst = null;
+		try {
+			lst = new PrintWriter(fileName + ".lst");
+		} catch (FileNotFoundException e) {
+			System.err.println("Cannot create listing file!");
+			System.exit(3);
+		}
+		PrintWriter obj = null;
+		try {
+			obj = new PrintWriter(fileName + ".obj");
+		} catch (FileNotFoundException e) {
+			System.err.println("Cannot create object file!");
+			System.exit(4);
+		}
+		//Run pass two, creating .lst and .obj file
+		assm.passTwo(lst, obj);
+		lst.flush();
+		obj.flush();
+	}
+}
+
+
+
+//Convenience class that implements label, comment, and line methods
+public abstract class AbstractCommand implements Command {
+	private String label;
+	private String comment;
+	private int line;
+
+	@Override
+	public void setLabel(String label) {
+		this.label = label;
+	}
+	
+	@Override
+	public String getLabel() {
+		return label;
+	}
+	
+	@Override
+	public void setComment(String comment) {
+		this.comment = comment;
+	}
+	
+	@Override
+	public String getComment() {
+		return comment;
+	}
+
+	@Override
+	public void setLine(int line) {
+		this.line = line;
+	}
+	
+	@Override
+	public int getLine() {
+		return line;
+	}
+}
+
+
+
+class Comment extends AbstractCommand {
+
+	@Override
+	public int getSize() {
+		return 0;
+	}
+
+	@Override
+	public String getName() {
+		return null;
+	}
+
+	@Override
+	public String getArgument() {
+		return null;
+	}
+
+}
+
+
+
+class BaseDirective extends AbstractCommand implements ExpressionCommand {
+
+	private Expression expr;
+	
+	public BaseDirective(Expression expr) {
+		this.expr = expr;
+	}
+	
+	@Override
+	public Expression getExpression() {
+		return expr;
+	}
+	
+	@Override
+	public int getSize() {
+		return 0;
+	}
+
+	@Override
+	public String getName() {
+		return " BASE";
+	}
+}
+
+
+
+class ByteDirective extends AbstractCommand implements WriteableCommand {
+
+	private Data data;
+	
+	public ByteDirective(Data data) {
+		this.data = data;
+	}
+
+	@Override
+	public int getSize() {
+		return data.getSize();
+	}
+
+	@Override
+	public void write(byte[] buffer, int pos) {
+		for (byte b : data.toBytes()) {
+			buffer[pos++] = b;
+		}
+	}
+
+	@Override
+	public String getName() {
+		return " BYTE";
+	}
+
+	@Override
+	public String getArgument() {
+		return " " + data.toString();
+	}
+
+}
+
+
+
+class EndDirective extends AbstractCommand implements ExpressionCommand {
+
+	private Expression first; //Executable instruction
+	
+	//When there is no label
+	public EndDirective() {
+		this(null);
+	}
+	
+	public EndDirective(Expression first) {
+		this.first = first;
+	}
+	
+	//If this method returns null, then this end directive didn't
+	//have a first expression
+	@Override
+	public Expression getExpression() {
+		return first;
+	}
+	
+	@Override
+	public int getSize() {
+		return 0;
+	}
+
+	@Override
+	public String getName() {
+		return " END";
+	}
+
+	//The only expression command that might contain a null expression
+	@Override
+	public String getArgument() {
+		if (first == null) {
+			return null;
+		}
+		return " " + first.toString();
+	}
+}
+
+
+
+
+class ExtdefDirective extends AbstractCommand {
+
+	private List<String> symbols;
+	
+	public ExtdefDirective(List<String> symbols) {
+		this.symbols = symbols;
+	}
+	
+	public List<String> getSymbols() {
+		return symbols;
+	}
+	
+	@Override
+	public int getSize() {
+		return 0;
+	}
+	
+	@Override
+	public String getName() {
+		return " EXTDEF";
+	}
+
+	@Override
+	public String getArgument() {
+		StringBuilder result = new StringBuilder(" ");
+		for (int i = 0; i < symbols.size(); i++) {
+			result.append(symbols.get(i));
+			if (i < symbols.size() - 1) {
+				result.append(",");
+			}
+		}
+		return result.toString();
+	}
+}
+
+
+
+
+class ExtrefDirective extends AbstractCommand {
+
+	private List<String> symbols;
+	
+	public ExtrefDirective(List<String> symbols) {
+		this.symbols = symbols;
+	}
+	
+	public List<String> getSymbols() {
+		return symbols;
+	}
+	
+	@Override
+	public int getSize() {
+		return 0;
+	}
+
+	@Override
+	public String getName() {
+		return " EXTREF";
+	}
+
+	@Override
+	public String getArgument() {
+		StringBuilder result = new StringBuilder(" ");
+		for (int i = 0; i < symbols.size(); i++) {
+			result.append(symbols.get(i));
+			if (i < symbols.size() - 1) {
+				result.append(",");
+			}
+		}
+		return result.toString();
+	}
+}
+
+
+
+class NoBaseDirective extends AbstractCommand {
+
+	@Override
+	public int getSize() {
+		return 0;
+	}
+
+	@Override
+	public String getName() {
+		return " NOBASE";
+	}
+
+	@Override
+	public String getArgument() {
+		return null;
+	}
+}
+
+
+
+class OrgDirective extends AbstractCommand implements ExpressionCommand {
+
+	private Expression expr;
+	
+	public OrgDirective(Expression expr) {
+		this.expr = expr;
+	}
+	
+	@Override
+	public Expression getExpression() {
+		return expr;
+	}
+
+	@Override
+	public int getSize() {
+		return 0;
+	}
+
+	@Override
+	public String getName() {
+		return " ORG";
+	}
+}
+
+
+
+class ResbDirective extends AbstractCommand {
+
+	public int numBytes;
+	
+	public ResbDirective(int numBytes) {
+		this.numBytes = numBytes;
+	}
+
+	@Override
+	public int getSize() {
+		return numBytes;
+	}
+
+	@Override
+	public String getName() {
+		return " RESB";
+	}
+
+	@Override
+	public String getArgument() {
+		return " " + Integer.toString(numBytes);
+	}
+}
+
+
+
+class ReswDirective extends AbstractCommand {
+
+	private int numWords;
+	
+	public ReswDirective(int numWords) {
+		this.numWords = numWords;
+	}
+
+	@Override
+	public int getSize() {
+		return numWords * 3;
+	}
+
+	@Override
+	public String getName() {
+		return " RESW";
+	}
+
+	@Override
+	public String getArgument() {
+		return " " + Integer.toString(numWords);
+	}
+}
+
+
+
+class StartDirective extends AbstractCommand {
+
+	private int start; //Address
+	
+	public StartDirective(int start) {
+		this.start = start;
+	}
+	
+	public int getStart() {
+		return start;
+	}
+	
+	@Override
+	public int getSize() {
+		return 0;
+	}
+
+	@Override
+	public String getName() {
+		return " START";
+	}
+
+	@Override
+	public String getArgument() {
+		return Integer.toString(start);
+	}
+}
+
+
+
+class WordDirective extends AbstractCommand implements ModifiableCommand {
+
+	//The value inside the word, to be assembled
+	private int word;
+	
+	private Expression expr;
+	
+	public WordDirective(Expression expr) {
+		this.expr = expr;
+	}
+	
+	@Override
+	public Expression getExpression() {
+		return expr;
+	}
+
+	public void setWord(int word) {
+		this.word = word;
+	}
+	
+	@Override
+	public int getSize() {
+		return 3;
+	}
+
+	@Override
+	public void write(byte[] buffer, int pos) {
+		buffer[pos] 	= (byte)(word >> 16);
+		buffer[pos + 1] = (byte)(word >> 8);
+		buffer[pos + 2] = (byte)(word);
+	}
+
+	@Override
+	public int getOffset() {
+		return 0; //The entire word needs to be modified
+	}
+
+	@Override
+	public int getStride() {
+		return 6; //Again, the entire word
+	}
+
+	@Override
+	public String getName() {
+		return " WORD";
+	}
+
+	@Override
+	public String getArgument() {
+		return " " + expr.toString();
+	}
+}
+
+
+
+//Represents a command that has an expression as its argument
+//like Format3/4 instructions, and WORD/EQU directives, etc.
+public interface ExpressionCommand extends Command {
+	Expression getExpression();
+	
+	@Override
+	default public String getArgument() {
+		return " " + getExpression().toString();
+	}
+}
+
+
+//Represents the ability of a format 3 or 4 instruction to be 
+//PC-relative, Base-relative, or absolute.
+public enum AddressMode {	
+	ABSOLUTE(false, false),
+	PC(false, true),
+	BASE(true, false);
+	
+	private byte bp;
+	
+	private AddressMode(boolean b, boolean p) {
+		if (b) bp |= 0b0100_0000; //OR with b mask
+		if (p) bp |= 0b0010_0000; //OR with p mask
+	}
+	
+	//Gets a 1-byte xbpe flag, by combining this addressing mode with
+	//the specified x and e flags. Returns the byte according to
+	//the format of xbpe 0000
+	public byte getXbpeFlag(boolean x, boolean e) {
+		byte result = bp;
+		if (x) result |= 0b1000_0000; //OR with x mask
+		if (e) result |= 0b0001_0000; //Or with e mask
+		return result;
+	}
+}
+
+
+
+class Format1Instruction extends Instruction {
+
+	public Format1Instruction(Mnemonic mnemonic) {
+		super(mnemonic);
+	}
+	
+	@Override
+	public int getSize() {
+		return 1;
+	}
+
+	@Override
+	public void write(byte[] buffer, int pos) {
+		buffer[pos] = mnemonic.getOpcode();
+	}
+
+	@Override
+	public String getArgument() {
+		return null;
+	}
+
+}
+
+
+
+class Format2Instruction extends Instruction {
+	//The different kinds of Format2 instructions use different fields:
+	//Format2R uses only r1 (but not r2)
+	//Format2N uses only n; (neither r1 nor r2)
+	//Format2RR uses r1 and r2; (both r1 and r2)
+	//Format2RN uses r2 and n; (but not r1)
+	private String r1;
+	private String r2;
+	private byte n;
+	
+	//to be assembled
+	private byte argument;
+	
+	//Constructs a Format2R instruction, where r is a register
+	public Format2Instruction(Mnemonic mnemonic, String r) {
+		super(mnemonic);
+		r1 = r;
+	}
+	
+	//Constructs a Format2N instruction, where n is 0 to 15, inclusive
+	public Format2Instruction(Mnemonic mnemonic, byte n) {
+		super(mnemonic);
+		this.n = n;
+	}
+	
+	//Constructs a Format2RR instruction, where r1 and r2 are each registers
+	public Format2Instruction(Mnemonic mnemonic, String r1, String r2) {
+		super(mnemonic);
+		this.r1 = r1;
+		this.r2 = r2;
+	}
+	
+	//Constructs a Format2RN instruction, where n is 1 to 16, inclusive
+	public Format2Instruction(Mnemonic mnemonic, String r, byte n) {
+		super(mnemonic);
+		r2 = r;
+		this.n = n;
+	}
+	
+	//Sets the 4 higher order bits of the byte argument to the 4 lower bits of higher
+	//Sets the 4 lower order bits of the argument to 0
+	public void setArgument(byte higher) {
+		argument = (byte)((higher & 0xF) << 4); 
+	}
+	
+	//Sets the 4 higher order bits of the argument to the lower four bits of higher
+	//Sets the 4 lower order bits of the argument to the lower four bits of lower
+	public void setArgument(byte higher, byte lower) {
+		argument = (byte)(((higher & 0xF) << 4) | (lower & 0xF));
+	}
+	
+	//Returns the register if this instruction is a Format2R or Format2RN instruction
+	//Returns the first register if it is a Format2RR instruction,
+	//or null if this is a Format2N instruction
+	public String getRegisterOne() {
+		return r1;
+	}
+	//Returns the second register if this instruction is a Format2RR instruction,
+	//or null otherwise
+	public String getRegisterTwo() {
+		return r2;
+	}
+	//Returns the number if this instruction is a Format2N or Format2RN instruction
+	public byte getNumber() {
+		return n;
+	}
+	
+	@Override
+	public int getSize() {
+		return 2;
+	}
+
+	@Override
+	public void write(byte[] buffer, int pos) {
+		buffer[pos] 	= mnemonic.getOpcode();
+		buffer[pos + 1] = argument;
+	}
+
+	@Override
+	public String getArgument() {
+		switch(mnemonic.getFormat()) {
+		case FORMAT2N: return " " + Integer.toString(n);
+		case FORMAT2R: return " " + r1;
+		case FORMAT2RN: return " " + r2 + "," + n;
+		case FORMAT2RR: return " " + r1 + "," + r2;
+		default: throw new IllegalStateException(mnemonic.getFormat().toString());
+		}
+	}
+
+}
+
+
+
+class Format34Instruction extends Instruction implements ModifiableCommand {
+
+	//Provided by constructor at parse-time
+	private boolean extended;
+	private TargetMode target;
+	private Expression expr;
+	private boolean indexed;
+	
+	//To be computed during assembly (hence the setters)
+	private short argument; 
+	private AddressMode address;
+	
+	//Format34M
+	//If indexed, then TargetMode must be Simple
+	public Format34Instruction(boolean extended, Mnemonic mnemonic, 
+		TargetMode target, Expression expr, boolean indexed) {
+		super(mnemonic);
+		this.extended = extended;
+		this.target = target;
+		this.expr = expr;
+		this.indexed = indexed;
+	}
+	
+	//TODO can you extend a Format34 Instruction? RSUB is the only known one
+	//Format34 
+	public Format34Instruction(boolean extended, Mnemonic mnemonic) {
+		//Zero out the expression
+		this(extended, mnemonic, TargetMode.SIMPLE_XE, 
+			new Expression(new ExpressionNumber(0)), false);
+	}
+	
+	public void setAddressMode(AddressMode address) {
+		this.address = address;
+	}
+	
+	public void setArgument(int argument) {
+		//Mask so that a negative 12-bit disp will not overflow into xbpe
+		int mask;
+		if (extended) { 
+			//20 bit mask
+			mask = (1 << 20) - 1;
+		} else if (target == TargetMode.SIMPLE){ 
+			//15 bit mask
+			mask = (1 << 15) - 1;
+		} else { 
+			//12 bit mask
+			mask = (1 << 12) - 1;
+		}
+		this.argument = (short)(mask & argument);
+	}
+	
+	public boolean isExtended() {
+		return extended;
+	}
+	
+	//Otherwise, some sort of relative: PC or base
+	public boolean isAbsoluteAddressing() {
+		return address == AddressMode.ABSOLUTE;
+	}
+	
+	@Override
+	public Expression getExpression() {
+		return expr;
+	}
+	
+	@Override
+	public int getSize() {
+		return extended ? 4 : 3;
+	}
+
+	@Override
+	public void write(byte[] buffer, int pos) {
+		buffer[pos] = (byte)(mnemonic.getOpcode() | target.getNiMask());
+		if (extended) {
+			buffer[pos + 1] = (byte)((argument >> 16));
+			buffer[pos + 2] = (byte)(argument >> 8);
+			buffer[pos + 3] = (byte)(argument);
+		} else {
+			buffer[pos + 1] = (byte)((argument >> 8));
+			buffer[pos + 2] = (byte)(argument);
+		}
+		buffer[pos + 1] |= address.getXbpeFlag(indexed, extended);
+	}
+
+	@Override
+	public int getOffset() {
+		return 1; //Don't modify the opcode
+	}
+
+	@Override
+	public int getStride() {
+		return 5; //5-half-bytes of format-4 address
+	}
+	
+	@Override
+	public String getName() {
+		return (extended ? '+' : ' ') + mnemonic.getName();
+	}
+
+	@Override
+	public String getArgument() {
+		if (mnemonic.getFormat() == Format.FORMAT34) {
+			return null; //This is bad. Really really bad.
+		}
+		
+		StringBuilder result = new StringBuilder();
+		switch(target) {
+		case IMMEDIATE: result.append('#'); break;
+		case INDIRECT: result.append('@'); break;
+		default: result.append(' '); break;
+		}
+		result.append(expr);
+		if (indexed) {
+			result.append(",X");
+		}
+		return result.toString();
+	}
+}
+
+
+
+public abstract class Instruction extends AbstractCommand implements
+		WriteableCommand {
+
+	protected Mnemonic mnemonic;
+	
+	public Instruction(Mnemonic mnemonic) {
+		this.mnemonic = mnemonic;
+	}
+	
+	@Override
+	public String getName() {
+		return " " + mnemonic.getName();
+	}
+}
+
+
+//Represents the ability of a Format 3 or 4 instruction to be
+//Immediate (#), Indirect (@), or Simple.
+public enum TargetMode {
+	//Our book's SicXe assembler will not generate this ni = 00,
+	//even though a SicXe Machine CPU could execute it
+	SIMPLE(false, false),
+	IMMEDIATE(false, true),
+	INDIRECT(true, false),
+	SIMPLE_XE(true, true);
+	
+	private byte ni;
+	
+	private TargetMode(boolean n, boolean i) {
+		if (n) ni |= 0b0000_0010; //OR with the n mask
+		if (i) ni |= 0b0000_0001; //OR with the i mask
+	}
+	
+	//Gets the 1-byte ni mask. The result takes the format of 
+	//0000 00ni, where n and i are the indirect and immediate flags
+	public byte getNiMask() {
+		return ni;
+	}
+}
+
+
+//Represents a command that has an expression, and writes object code.
+//Therefore, a modification record must be generated for each relative symbol. 
+//in the expression. The modification record needs to know exactly how to modify the command
+public interface ModifiableCommand extends ExpressionCommand, WriteableCommand {
+	//The number of bytes between the address of the command, and the
+	//beginning of the modification
+	int getOffset();
+	
+	//The number of half-bytes to modify the expression, starting at the offset.
+	int getStride();
+}
+
+
+
+//Represents a command that writes actual object code
+//getSize should not return 0
+public interface WriteableCommand extends Command {
+	//Writes object code to the buffer starting at pos.
+	//This command should only modify the number of bytes according to getSize
+	void write(byte[] buffer, int pos);
+}
+
+
+
+//Represents a line of useful code in a SicXe program.
+//A command is created when the source is parsed, and the location counter
+//must be incremented. A command might have a corresponding label definition
+//or comment.
+public interface Command {
+	//Returns the number of bytes that this command would take up 
+	//in the object program. 
+	//Alternatively, the amount by which to increment location counter
+	int getSize();
+	
+	void setLabel(String label);
+	//Gets the label for this command, or null if there is no label
+	String getLabel();
+	
+	void setComment(String comment);
+	//Gets the comment for this command, or null if there is no comment
+	String getComment();
+	
+	void setLine(int line);
+	//Gets the line number for this command, or a negative number if this 
+	//command was not in the source
+	int getLine();
+	
+	//Listing file methods
+	//Returns a string containing a mnemonic name
+	String getName();
+	//Returns a string containing arguments (to the right of name)
+	//Or null if there are no arguments
+	String getArgument();
+}
+
+
+
+//Represents data from an ascii string
+class AsciiData implements Data {
+
+	private String value;
+	
+	public AsciiData(String value) {
+		this.value = value;
+	}
+	
+	@Override
+	public byte[] toBytes() {
+		int len = value.length();
+		byte[] result = new byte[len];
+		for (int i = 0; i < len; i++) {
+			result[i] = (byte)value.charAt(i);
+		}
+		return result;
+	}
+	
+	@Override
+	public int getSize() {
+		return value.length();
+	}
+
+	@Override
+	public String toString() {
+		return "C'" + value + "'";
+	}
+}
+
+
+
+//Represents data from a hexadecimal string
+class HexData implements Data {
+
+	private String value;
+	
+	//Precondition: value must have even length and be a valid hex string
+	public HexData(String value) {
+		this.value = value;
+	}
+
+	@Override
+	public byte[] toBytes() {
+		byte[] result = new byte[value.length() / 2];
+		for (int i = 0; i < result.length; i++) {
+			String b = value.substring(i * 2, i * 2 + 2);
+			result[i] = (byte) Integer.parseInt(b, 16);
+		}
+		return result;
+	}
+	
+	@Override
+	public int getSize() {
+		return value.length() / 2;
+	}
+	
+	@Override
+	public String toString() {
+		return "X'" + value + "'";
+	}
+
+}
+
+
+//A configuration of bytes, specified by a string of ascii or hex text
+public interface Data {
+	//Gets the bytes for this data
+	byte[] toBytes();
+	//Gets the number of bytes for this data. 
+	int getSize();
+}
+
+
+
+
+//Represents a node in an arithmetic expression tree
+public interface ExpressionNode {
+	//Returns the value of this expression
+	int getValue(Command command, Program program);
+	
+	//Write infix string of this expression
+	void write(StringBuilder infix);
+	
+	//Appends relative terms in this expression to the list
+	//Also appends external symbols in this expression
+	void addTerms(List<Term> terms, Program program);
+}
+
+
+
+
+//Represents a constant numerical value expression
+class ExpressionNumber implements ExpressionNode {
+
+	private int value;
+	
+	//Creates an expression with the given value
+	public ExpressionNumber(int value) {
+		this.value = value;
+	}
+
+	@Override
+	public int getValue(Command command, Program program) {
+		return value;
+	}
+
+	@Override
+	public void write(StringBuilder infix) {
+		infix.append(Integer.toString(value));
+	}
+	
+	@Override
+	public void addTerms(List<Term> terms, Program program) {
+		//No terms to add
+	}
+}
+
+
+
+
+//Represents an operation in an expression. These are addition, subtraction,
+//multiplication, and division
+class ExpressionOperator implements ExpressionNode {
+
+	private Type operator;
+	private ExpressionNode left;
+	private ExpressionNode right;
+	
+	public ExpressionOperator(Type operator, ExpressionNode left, 
+			ExpressionNode right) {
+		this.operator = operator;
+		this.left = left;
+		this.right = right;
+	}
+	
+	@Override
+	public int getValue(Command command, Program program) {
+		int l = left.getValue(command, program);
+		int r = right.getValue(command, program);
+		switch(operator) {
+		case ADD: return l + r;
+		case SUB: return l - r;
+		case MUL: return l * r;
+		case DIV: return l / r;
+		default: throw new IllegalStateException(operator.toString());
+		}
+	}
+
+	@Override
+	public void write(StringBuilder infix) {
+		//Whether to parenthesize the left
+		boolean l = left instanceof ExpressionOperator
+			&& ((ExpressionOperator)left).operator.getPrecedence()
+			< operator.getPrecedence();
+		//Likewise for the right
+		boolean r = right instanceof ExpressionOperator
+			&& ((ExpressionOperator)right).operator.getPrecedence()
+			< operator.getPrecedence();
+		
+		if (l) infix.append('(');
+		left.write(infix);
+		if (l) infix.append(')');
+		
+		infix.append(' ');
+		infix.append(operator.toString());
+		infix.append(' ');
+		
+		if (r) infix.append('(');
+		right.write(infix);
+		if (r) infix.append(')');
+	}
+	
+	@Override
+	public void addTerms(List<Term> terms, Program program) {
+		//No relative terms may enter into multiplication or division
+		
+		
+		left.addTerms(terms, program);
+		
+		if (operator == Type.SUB) {
+			//Invert the sign of the right side's symbols
+			List<Term> buffer = new ArrayList<>();
+			right.addTerms(buffer, program);
+			for (Term symbol : buffer) {
+				symbol.invertSign();
+			}
+			
+			terms.addAll(buffer);
+		} else {
+			right.addTerms(terms, program);
+		}
+		
+	}
+	
+	public static enum Type {
+		ADD(0),
+		SUB(0),
+		MUL(1),
+		DIV(1);
+		
+		//Higher integer means higher precedence: Do it first
+		private int precedence;
+	
+		private Type(int precedence) {
+			this.precedence = precedence;
+		}
+		
+		public int getPrecedence() {
+			return precedence;
+		}
+		
+		@Override
+		public String toString() {
+			switch(this) {
+			case ADD: return "+";
+			case SUB: return "-";
+			case MUL: return "*";
+			case DIV: return "/";
+			default: throw new IllegalStateException();
+			}
+		}
+	}
+}
+
+
+
+
+//Represents a star (*) that is, the current location counter
+class ExpressionStar implements ExpressionNode {
+
+	@Override
+	public int getValue(Command command, Program program) {
+		return program.getLocationCounter();
+	}
+
+	@Override
+	public void write(StringBuilder infix) {
+		infix.append('*');
+	}
+	
+	@Override
+	public void addTerms(List<Term> terms, Program program) {
+		terms.add(new Term());
+	}
+}
+
+
+
+
+class ExpressionSymbol implements ExpressionNode {
+
+	private String name; //Of the symbol
+	
+	private Symbol symbol; //To be resolved during assembly
+	
+	//Creates an expression from a symbol with the given name
+	public ExpressionSymbol(String name) {
+		this.name = name;
+	}
+	
+	public String getName() {
+		return name;
+	}
+	
+	@Override
+	public int getValue(Command command, Program program) {
+		if (symbol == null) {
+			symbol = program.getSymbol(name);
+			if (symbol == null) {
+				throw new AssembleError(command, "Unrecognized symbol " + name);
+			}
+		}
+		return symbol.getValue();
+	}
+
+	@Override
+	public void write(StringBuilder infix) {
+		infix.append(name);
+	}
+	
+	@Override
+	public void addTerms(List<Term> terms, Program program) {
+		terms.add(new Term(symbol));
+	}
+}
+
+
+
+//Represents a relative term AND its total sign in an expression
+class Term {
+	private Symbol symbol;
+	private boolean positive = true;
+	
+	//Constructs a positive star (*) term
+	public Term() { }
+	
+	//Constructs a term with a positive signed symbol
+	public Term(Symbol symbol) {
+		this.symbol = symbol;
+	}
+	
+	//Toggles the sign of this symbol
+	public void invertSign() {
+		positive = !positive;
+	}
+	
+	//Returns the symbol, if this relative term is a relative symbol
+	//Otherwise, returns null if this relative term is a star
+	public Symbol getSymbol() {
+		return symbol;
+	}
+	
+	//Gets the sign of this symbol, returning true if positive,
+	//and false if negative
+	public boolean isPositive() {
+		return positive;
+	}
+}
+
+
+
+
+//Represents a complete expression that can be an operand of 
+//certain commands in a program
+class Expression {
+	
+	//The root of the expression tree
+	private ExpressionNode root;
+	
+	//To be assembled
+	private int value;
+	//The number of positive relative symbols minus the number of negative ones
+	private int netSign;
+	//The external symbol references and associated sign
+	private List<Term> externals = new ArrayList<>();
+	
+	private boolean evaluated;
+	
+	public Expression(ExpressionNode root) {
+		this.root = root;
+	}
+	
+	public int getValue() {
+		if (evaluated) {
+			return value;
+		}
+		throw new RuntimeException();
+		
+	}
+	
+	public boolean isAbsolute() {
+		return getNetSign() == 0;
+	}
+	
+	public int getNetSign() {
+		if (evaluated) {
+			return netSign;
+		}
+		throw new RuntimeException();
+	}
+	
+	public void evaluate(Command command, Program program) {
+		if (evaluated) {
+			return;
+		}
+		value = root.getValue(command, program);
+		
+		//Get all symbols
+		List<Term> terms = new ArrayList<>();
+		root.addTerms(terms, program);
+		
+		netSign = 0;
+		for (Term term : terms) {
+			Symbol symbol = term.getSymbol();
+			//Star terms have null symbol
+			if (symbol == null) {
+				continue;
+			}
+			if (symbol.isExternal()) {
+				externals.add(term);
+			} else if (!symbol.isAbsolute()) {
+				netSign += (term.isPositive() ? 1 : -1);
+			}
+		}
+		evaluated = true;
+	}
+	
+	public List<Term> getExternalSymbols() {
+		return externals;
+	}
+	
+	@Override
+	public String toString() {
+		StringBuilder result = new StringBuilder();
+		root.write(result);
+		return result.toString();
+	}
+}
+
+
+
+//Contains Program State, like location counter, references, definitions,
+//Symtab, etc.
+class Program {
+	private String name;
+	private int start;
+	private int first;
+	private int size;
+	//The contents of the base register, or, an integer less than 0 if
+	//base is disabled
+	private int base;
+	private int locctr;
+	
+	private List<String> definitions = new ArrayList<>();
+	private List<String> references = new ArrayList<>();
+	
+	private Map<String, Symbol> symtab = new HashMap<>();
+	
+	//Start directive methods
+	public void setName(String name) {
+		this.name = name;
+	}
+	public String getName() {
+		return name;
+	}
+	public void setStart(int start) {
+		this.start = start;
+	}
+	public int getStart() {
+		return start;
+	}
+	public boolean isRelocatable() {
+		return start == 0;
+	}
+	//End directive methods
+	public void setFirst(int first) {
+		this.first = first;
+	}
+	public int getFirst() {
+		return first;
+	}
+	public int getSize() {
+		return size;
+	}
+	//Location counter methods
+	public void setLocationCounter(int locctr) {
+		this.locctr = locctr;
+		//When the locctr is rewound to something small, then
+		//size should not change
+		if (locctr - start > size) {
+			size = locctr - start;
+		}
+		
+	}
+	public int getLocationCounter() {
+		return locctr;
+	}
+	public void incrementLocationCounter(int step) {
+		setLocationCounter(locctr + step);
+	}
+	//Base related methods
+	public void setBase(int base) {
+		this.base = base;
+	}
+	public void disableBase() {
+		base = -1;
+	}
+	public int getBase() {
+		return base;
+	}
+	public boolean isBaseEnabled() {
+		return base >= 0;
+	}
+	//External definition methods
+	public void addExternalDefintion(String def) {
+		definitions.add(def);
+	}
+	public List<Symbol> getExternalDefinitions() {
+		List<Symbol> result = new ArrayList<>();
+		for (String def : definitions) {
+			Symbol symbol = getSymbol(def);
+			if (symbol == null) {
+				throw new RuntimeException("External Definition symbol " + def
+						+ " was never defined");
+			}
+			result.add(symbol);
+		}
+		return result;
+	}
+	//External reference methods
+	public void addExternalReference(String ref) {
+		symtab.put(ref, new Symbol(ref));
+		references.add(ref);
+	}
+	public List<String> getExternalReferences() {
+		return references;
+	}
+	//Symtab methods
+	public void put(String symbol, int value, boolean absolute) {
+		symtab.put(symbol, new Symbol(symbol, value, absolute));
+	}
+	public Symbol getSymbol(String symbol) {
+		return symtab.get(symbol);
+	}
+}
+
+
+class Symbol {
+	
+	private String name;
+	private int value;
+	private boolean external;
+	private boolean absolute;
+	
+	//Defines a local symbol
+	public Symbol(String name, int value, boolean absolute) {
+		this.name = name;
+		this.value = value;
+		this.absolute = absolute;
+	}
+	
+	//Defines an external symbol
+	public Symbol(String name) {
+		this.name = name;
+		external = true;
+	}
+	
+	//Returns whether the symbol is external; otherwise, it is local
+	public boolean isExternal() {
+		return external;
+	}
+	//Returns whether the symbol is absolute; otherwise, it is relative
+	public boolean isAbsolute() {
+		return absolute;
+	}
+	//Returns the text of the symbol
+	public String getName() {
+		return name;
+	}
+	//Returns the address or value
+	public int getValue() {
+		return value;
+	}
+}
+
+
+
+class Test {
+	public static void main(String[] args) throws FileNotFoundException {
+		SicXeAssm asm = new SicXeAssm(
+				new BufferedReader(new FileReader("test.txt")));
+		
+		asm.passOne();
+		
+		PrintWriter lst = new PrintWriter(System.err);
+		PrintWriter obj = new PrintWriter(System.out);
+		
+		asm.passTwo(lst, obj);
+		
+		lst.flush();
+		obj.flush();
+	}
+}
+

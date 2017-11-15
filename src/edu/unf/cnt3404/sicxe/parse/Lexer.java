@@ -2,7 +2,7 @@ package edu.unf.cnt3404.sicxe.parse;
 
 import edu.unf.cnt3404.sicxe.global.Global;
 import edu.unf.cnt3404.sicxe.global.Mnemonic;
-import edu.unf.cnt3404.sicxe.parse.Token.Type;
+import edu.unf.cnt3404.sicxe.parse.Token;
 import edu.unf.cnt3404.sicxe.syntax.Data;
 import edu.unf.cnt3404.sicxe.syntax.data.AsciiData;
 import edu.unf.cnt3404.sicxe.syntax.data.HexData;
@@ -100,7 +100,7 @@ public class Lexer implements Locatable {
 			}
 			return Token.comment(row, col, comment.toString());
 		}
-		if (Character.isLetter(c)) {
+		if (Character.isLetter(c) || c == '_') {
 			StringBuilder string = new StringBuilder();
 			if (scanner.peek() == '\'') {
 				scanner.next(); //Consume the open quote
@@ -129,7 +129,7 @@ public class Lexer implements Locatable {
 			}
 			string.append(c);
 			while ((Character.isLetter(c = Character.toUpperCase(scanner.peek())) 
-				|| Character.isDigit(c)) && c != Scanner.EOS) {
+				|| Character.isDigit(c) || c == '_') && c != Scanner.EOS) {
 				scanner.next();
 				string.append(c);
 			}
@@ -165,7 +165,7 @@ public class Lexer implements Locatable {
 	//If this method returns true, then the token is consumed.
 	public boolean accept(char c) {
 		Token token = peek();
-		boolean result = token != null && token.is(Type.SIMPLE) && token.is(c);
+		boolean result = token != null && token.is(Token.Type.SIMPLE) && token.is(c);
 		if (result) {
 			next();
 		}
@@ -174,7 +174,7 @@ public class Lexer implements Locatable {
 	
 	//Return whether the next token is of the given type and returns the token if possible
 	//If this method returns null, then the token was not of the given type
-	private Token accept(Type type) {
+	private Token accept(Token.Type type) {
 		Token result = peek();
 		if (result != null && result.is(type)) {
 			next();
@@ -219,14 +219,14 @@ public class Lexer implements Locatable {
 	//a simple token, or did not match the given character.
 	public void expect(char c) {
 		Token token = next();
-		if (!token.is(Type.SIMPLE) || !token.is(c)) {
+		if (!token.is(Token.Type.SIMPLE) || !token.is(c)) {
 			throw new AssembleError(token, "Expected " + c + " not " + token);
 		}
 	}
 	
 	//Parses the next token and returns it, or throws an exception if the next token was 
 	//not of the given type
-	private Token expect(Type type) {
+	private Token expect(Token.Type type) {
 		Token result = next();
 		if (!result.is(type)) {
 			throw new AssembleError(result, "Expected " + type + " not " + result);

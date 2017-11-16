@@ -128,8 +128,8 @@ public class ObjectProgramWriter {
 		int start = program.getLocationCounter() + c.getOffset();
 		int stride = c.getStride();
 		
-		for (Term s : expr.getExternalSymbols()) {
-			mods.add(new ModificationRecord(start, stride, s.getSymbol().getName(), s.isPositive()));
+		for (Term term : expr.getExternalSymbols()) {
+			mods.add(new ModificationRecord(start, stride, term.getSymbol().getName(), term.isPositive()));
 		}
 		//Program relative modification record iff |netSign| == 1
 		int netSign = expr.getNetSign();

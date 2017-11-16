@@ -93,8 +93,7 @@ public class Lexer implements Locatable {
 		if (c == '.') {
 			StringBuilder comment = new StringBuilder();
 			//read until the next line
-			while (!isLineSeparator(c = Character.toUpperCase(scanner.peek())) 
-				&& c != Scanner.EOS) {
+			while (!isLineSeparator(c = scanner.peek()) && c != Scanner.EOS) {
 				scanner.next();
 				comment.append(c);
 			}

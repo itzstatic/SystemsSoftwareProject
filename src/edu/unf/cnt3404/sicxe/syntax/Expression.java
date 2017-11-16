@@ -60,6 +60,7 @@ public class Expression {
 			Symbol symbol = term.getSymbol();
 			//Star terms have null symbol
 			if (symbol == null) {
+				netSign++;
 				continue;
 			}
 			if (symbol.isExternal()) {

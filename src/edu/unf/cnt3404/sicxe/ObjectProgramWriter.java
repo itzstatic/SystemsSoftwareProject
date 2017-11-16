@@ -14,7 +14,6 @@ import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.Symbol;
 import edu.unf.cnt3404.sicxe.syntax.command.ModifiableCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
-import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format34Instruction;
 import edu.unf.cnt3404.sicxe.syntax.expression.Term;
 
 //Prints an object program to a PrintWriter.
@@ -115,31 +114,27 @@ public class ObjectProgramWriter {
 	//given command; those records will be appended at the end
 	private void modify(ModifiableCommand c) {
 		Expression expr = c.getExpression();
-		//Only modify relative expressions
-		if (expr.isAbsolute()) {
-			return; 
-		}
-		//Relative addressing (probably unextended) Format34 instructions require no modification
-		if (c instanceof Format34Instruction && !((Format34Instruction) c).isAbsoluteAddressing()) {
-			return;
-		}
 		
 		//Of the mod record
 		int start = program.getLocationCounter() + c.getOffset();
 		int stride = c.getStride();
 		
+		//Make mod records for external symbols. Period.
 		for (Term term : expr.getExternalSymbols()) {
 			mods.add(new ModificationRecord(start, stride, term.getSymbol().getName(), term.isPositive()));
 		}
-		//Program relative modification record iff |netSign| == 1
-		int netSign = expr.getNetSign();
-		int abs = Math.abs(netSign); 
-		//If >1, then there would require multiple program relative modification records
-		//Is this even allowed? 
-		for (int i = 0; i < abs; i++) {
-			mods.add(new ModificationRecord(start, stride, program.getName(), netSign > 0));
+		
+		//Number of program relative modification records equal to |netSign|. 
+		//The signs of these records are equal to sign(netSign).
+		if (c.isAbsolute()) {
+			int netSign = expr.getNetSign();
+			int abs = Math.abs(netSign); 
+			//If >1, then there would require multiple program relative modification records
+			//Is this even allowed? 
+			for (int i = 0; i < abs; i++) {
+				mods.add(new ModificationRecord(start, stride, program.getName(), netSign > 0));
+			}
 		}
-		//If 0, then no record
 	}
 	
 	public void writeModificationAndEndRecords() {
@@ -152,7 +147,9 @@ public class ObjectProgramWriter {
 		}
 		
 		out.print('E');
-		out.printf("%06X", program.getFirst());
+		if (program.isRunnable()) {
+			out.printf("%06X", program.getFirst());
+		}
 		out.println();
 	}
 }

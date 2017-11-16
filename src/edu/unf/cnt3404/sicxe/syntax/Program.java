@@ -10,6 +10,8 @@ import java.util.Map;
 public class Program {
 	private String name;
 	private int start;
+	//The address of first instruction, or an integer less than 0 if
+	//there is no first instruction (not a runnable program)
 	private int first;
 	private int size;
 	//The contents of the base register, or, an integer less than 0 if
@@ -42,8 +44,15 @@ public class Program {
 	public void setFirst(int first) {
 		this.first = first;
 	}
+	public void disableFirst() {
+		first = -1;
+	}
 	public int getFirst() {
 		return first;
+	}
+	//Whether there's a first...
+	public boolean isRunnable() {
+		return first >= 0;
 	}
 	public int getSize() {
 		return size;

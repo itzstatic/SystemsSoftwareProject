@@ -40,6 +40,8 @@ public class ExpressionSymbol implements ExpressionNode {
 	
 	@Override
 	public void addTerms(List<Term> terms, Program program) {
-		terms.add(new Term(symbol));
+		if (!symbol.isAbsolute()) {
+			terms.add(new Term(symbol));	
+		}
 	}
 }

@@ -1,0 +1,21 @@
+proga	start	0
+		extdef	lista,enda
+		extref	listb,endb,listc,endc
+.We need to set the locctr to 0x20 for the next instructions
+		org		32 .0x20 to decimal
+ref1	lda		lista
+ref2	+ldt	listb+4
+ref3	ldx		#enda-lista
+
+.Next, we need LISTA to be 0x40, but EQU has not been implemented yet
+		org		64 .0x40 to decimal
+lista	resw	0 .This is a makeshift "EQU *"
+		org		84 .0x54
+enda	resw	0
+
+ref4	word	enda-lista+listc
+ref5	word	endc-listc-10
+ref6	word	endc-listc+lista-1
+ref7	word	enda-lista-(endb-listb)
+ref8	word	listb-lista
+		end		ref1

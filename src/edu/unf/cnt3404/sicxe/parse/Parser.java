@@ -354,7 +354,11 @@ public class Parser implements Locatable {
 			ExpressionNode left = nodes.pop();
 			nodes.add(new ExpressionOperator(operator, left, right));
 		}
-		return new Expression(nodes.pop());
+		if (nodes.size() > 0) {
+			return new Expression(nodes.pop());	
+		} else {
+			return null;
+		}
 	}
 
 	@Override

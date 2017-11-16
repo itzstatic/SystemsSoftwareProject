@@ -7,7 +7,6 @@ import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.BaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
-import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtdefDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.NoBaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.WordDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.AddressMode;
@@ -60,16 +59,31 @@ public class Assembler {
 	
 	private void assemble(Format34Instruction c) {
 		Expression expr = c.getExpression();
-		//Possibly, if the expression value occupies more than 12bits, 
-		//then one might decide to use 15 bit SIC target
-		//Format 4 instructions are big enough for virtually everything, though 
-		if (expr.isAbsolute() || c.isExtended()) {
+		//Format 3 instructions cannot have external symbols
+		if (!c.isExtended() && !expr.getExternalSymbols().isEmpty()) {
+			throw new AssembleError(c, "External symbols and not extended");
+		}
+		//Format 3 instructions cannot have more than 1 unpaired relative
+		if (!c.isExtended() && Math.abs(expr.getNetSign()) > 1) {
+			throw new AssembleError(c, "More than 1 unpaired local relative term and not extended");
+		}
+		//Extended can have anything
+		if (c.isExtended()) {
 			c.setAddressMode(AddressMode.ABSOLUTE);
 			c.setArgument(expr.getValue());
-			//Modification records will be generated for extended relative 
-		//High-net-sign expression, not extended
-		} else if (Math.abs(expr.getNetSign()) > 1) {
-			throw new AssembleError(c, "More than 1 unpaired relative term and not extended");
+		//Absolute expression, not extended
+		} else if (expr.isAbsolute()){
+			//Check to see if it fits in 12 bits
+			int argument = expr.getValue();
+			if (0 <= argument && argument < 4096) {
+				c.setAddressMode(AddressMode.ABSOLUTE);
+				c.setArgument(argument);
+				return;
+			}
+			//Generating ni=00 with 15 bits might be useful
+			//But, the architect decided not to do that.
+			
+			throw new AssembleError(c, "Absolute expression bigger than 4095 and not extended");
 		//Relative expression, not extended
 		} else {
 			int argument; //Either PC Disp or Base Disp
@@ -105,7 +119,12 @@ public class Assembler {
 	}
 
 	private void assemble(EndDirective c) {
-		program.setFirst(c.getExpression().getValue());
+		Expression expr = c.getExpression();
+		if (expr == null) {
+			program.disableFirst();
+		} else {
+			program.setFirst(expr.getValue());
+		}
 	}
 
 	private void assemble(BaseDirective c) {

@@ -55,4 +55,9 @@ public class WordDirective extends AbstractCommand implements ModifiableCommand 
 	public String getArgument() {
 		return " " + expr.toString();
 	}
+
+	@Override
+	public boolean isAbsolute() {
+		return true; //Always displays the absolute address.
+	}
 }

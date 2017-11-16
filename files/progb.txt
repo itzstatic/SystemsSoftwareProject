@@ -1,0 +1,21 @@
+progb	start	0
+		extdef	listb,endb
+		extref	lista,enda,listc,endc
+.We need to set the locctr to 0x36 for the next instructions
+		org		54 .0x36 to decimal
+ref1	+lda	lista
+ref2	ldt		listb+4
+ref3	+ldx	#enda-lista
+
+.Next, we need listb to be 0x60, but EQU has not been implemented yet
+		org		96 .0x60 to decimal
+listb	resw	0 .This is a makeshift "EQU *"
+		org		112 .0x70
+endb	resw	0
+
+ref4	word	enda-lista+listc
+ref5	word	endc-listc-10
+ref6	word	endc-listc+lista-1
+ref7	word	enda-lista-(endb-listb)
+ref8	word	listb-lista
+		end		

@@ -15,5 +15,8 @@ public interface ExpressionNode {
 	
 	//Appends relative terms in this expression to the list
 	//Also appends external symbols in this expression
+	//If a symbol needs a mod record, Then it is added to the list
+	//NOTE: Relative symbols using PC or BASE relative addressing do NOT
+	//need mod records; so, the converse is not true
 	void addTerms(List<Term> terms, Program program);
 }

@@ -12,6 +12,7 @@ import edu.unf.cnt3404.sicxe.parse.Lexer;
 import edu.unf.cnt3404.sicxe.parse.Parser;
 import edu.unf.cnt3404.sicxe.parse.Scanner;
 import edu.unf.cnt3404.sicxe.syntax.Command;
+import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.ExpressionCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
@@ -72,6 +73,9 @@ public class SicXeAssm {
 			}
 			//Add symbols to symtab
 			if (c.getLabel() != null) {
+				if (program.getSymbol(c.getLabel()) != null) {
+					throw new AssembleError(c, "Duplicate symbol " + c.getLabel());
+				}
 				program.put(c.getLabel(), program.getLocationCounter(), false);
 			}
 			
@@ -106,7 +110,10 @@ public class SicXeAssm {
 		
 		for (Command c : commands) {
 			if (c instanceof ExpressionCommand) {
-				((ExpressionCommand) c).getExpression().evaluate(c, program);
+				Expression expr = ((ExpressionCommand) c).getExpression();
+				if (expr != null) { //END Directive has null expression sometimes
+					expr.evaluate(c, program);
+				}
 			}
 			assembler.assemble(c);
 			listing.write(c);

@@ -61,8 +61,8 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 		return extended;
 	}
 	
-	//Otherwise, some sort of relative: PC or base
-	public boolean isAbsoluteAddressing() {
+	@Override
+	public boolean isAbsolute() {
 		return address == AddressMode.ABSOLUTE;
 	}
 	

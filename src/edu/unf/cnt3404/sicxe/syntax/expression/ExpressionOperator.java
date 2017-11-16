@@ -38,12 +38,17 @@ public class ExpressionOperator implements ExpressionNode {
 	public void write(StringBuilder infix) {
 		//Whether to parenthesize the left
 		boolean l = left instanceof ExpressionOperator
-			&& ((ExpressionOperator)left).operator.getPrecedence()
-			< operator.getPrecedence();
+			&& ((ExpressionOperator)left).operator.precedence
+			< operator.precedence;
 		//Likewise for the right
-		boolean r = right instanceof ExpressionOperator
-			&& ((ExpressionOperator)right).operator.getPrecedence()
-			< operator.getPrecedence();
+		boolean r;
+		if (right instanceof ExpressionOperator) {
+			//This hard-coded solution is so trashy...
+			r = operator == ExpressionOperator.Type.SUB
+				|| ((ExpressionOperator)right).operator.precedence < operator.precedence;
+		} else {
+			r = false;
+		}
 		
 		if (l) infix.append('(');
 		left.write(infix);

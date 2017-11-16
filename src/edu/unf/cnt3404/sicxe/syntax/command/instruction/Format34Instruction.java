@@ -1,12 +1,12 @@
 package edu.unf.cnt3404.sicxe.syntax.command.instruction;
 
 import edu.unf.cnt3404.sicxe.global.Format;
-import edu.unf.cnt3404.sicxe.global.Mnemonic;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
+import edu.unf.cnt3404.sicxe.syntax.command.AbstractCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.ModifiableCommand;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNumber;
 
-public class Format34Instruction extends Instruction implements ModifiableCommand {
+public class Format34Instruction extends AbstractCommand implements ModifiableCommand {
 
 	//Provided by constructor at parse-time
 	private boolean extended;
@@ -20,9 +20,8 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 	
 	//Format34M
 	//If indexed, then TargetMode must be Simple
-	public Format34Instruction(boolean extended, Mnemonic mnemonic, 
-		TargetMode target, Expression expr, boolean indexed) {
-		super(mnemonic);
+	public Format34Instruction(boolean extended, TargetMode target, 
+		Expression expr, boolean indexed) {
 		this.extended = extended;
 		this.target = target;
 		this.expr = expr;
@@ -31,9 +30,9 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 	
 	//TODO can you extend a Format34 Instruction? RSUB is the only known one
 	//Format34 
-	public Format34Instruction(boolean extended, Mnemonic mnemonic) {
+	public Format34Instruction(boolean extended) {
 		//Zero out the expression
-		this(extended, mnemonic, TargetMode.SIMPLE_XE, 
+		this(extended, TargetMode.SIMPLE_XE, 
 			new Expression(new ExpressionNumber(0)), false);
 	}
 	
@@ -78,7 +77,7 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 
 	@Override
 	public void write(byte[] buffer, int pos) {
-		buffer[pos] = (byte)(mnemonic.getOpcode() | target.getNiMask());
+		buffer[pos] = (byte)(getMnemonic().getOpcode() | target.getNiMask());
 		if (extended) {
 			buffer[pos + 1] = (byte)((argument >> 16));
 			buffer[pos + 2] = (byte)(argument >> 8);
@@ -102,12 +101,12 @@ public class Format34Instruction extends Instruction implements ModifiableComman
 	
 	@Override
 	public String getName() {
-		return (extended ? '+' : ' ') + mnemonic.getName();
+		return (extended ? '+' : ' ') + getMnemonic().getName();
 	}
 
 	@Override
 	public String getArgument() {
-		if (mnemonic.getFormat() == Format.FORMAT34) {
+		if (getMnemonic().getFormat() == Format.FORMAT34) {
 			return null; //This is bad. Really really bad.
 		}
 		

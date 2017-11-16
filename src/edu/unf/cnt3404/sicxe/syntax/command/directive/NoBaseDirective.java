@@ -10,11 +10,6 @@ public class NoBaseDirective extends AbstractCommand {
 	}
 
 	@Override
-	public String getName() {
-		return " NOBASE";
-	}
-
-	@Override
 	public String getArgument() {
 		return null;
 	}

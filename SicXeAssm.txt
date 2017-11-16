@@ -86,16 +86,30 @@ class Assembler {
 	}
 	private void assemble(Format34Instruction c) {
 		Expression expr = c.getExpression();
-		//Possibly, if the expression value occupies more than 12bits, 
-		//then one might decide to use 15 bit SIC target
-		//Format 4 instructions are big enough for virtually everything, though 
-		if (expr.isAbsolute() || c.isExtended()) {
+		//Format 3 instructions cannot have external symbols
+		if (!c.isExtended() && !expr.getExternalSymbols().isEmpty()) {
+			throw new AssembleError(c, "External symbols and not extended");
+		}
+		//Format 3 instructions cannot have more than 1 unpaired relative
+		if (!c.isExtended() && Math.abs(expr.getNetSign()) > 1) {
+			throw new AssembleError(c, "More than 1 unpaired local relative term and not extended");
+		}
+		//Extended can have anything
+		if (c.isExtended()) {
 			c.setAddressMode(AddressMode.ABSOLUTE);
 			c.setArgument(expr.getValue());
-			//Modification records will be generated for extended relative 
-		//High-net-sign expression, not extended
-		} else if (Math.abs(expr.getNetSign()) > 1) {
-			throw new AssembleError(c, "More than 1 unpaired relative term and not extended");
+		//Absolute expression, not extended
+		} else if (expr.isAbsolute()){
+			//Check to see if it fits in 12 bits
+			int argument = expr.getValue();
+			if (0 <= argument && argument < 4096) {
+				c.setAddressMode(AddressMode.ABSOLUTE);
+				c.setArgument(argument);
+				return;
+			}
+			//Generating ni=00 with 15 bits might be useful
+			//But, the architect decided not to do that.
+			throw new AssembleError(c, "Absolute expression bigger than 4095 and not extended");
 		//Relative expression, not extended
 		} else {
 			int argument; //Either PC Disp or Base Disp
@@ -127,7 +141,12 @@ class Assembler {
 		c.setWord(c.getExpression().getValue());
 	}
 	private void assemble(EndDirective c) {
-		program.setFirst(c.getExpression().getValue());
+		Expression expr = c.getExpression();
+		if (expr == null) {
+			program.disableFirst();
+		} else {
+			program.setFirst(expr.getValue());
+		}
 	}
 	private void assemble(BaseDirective c) {
 		program.setBase(c.getExpression().getValue());
@@ -520,29 +539,24 @@ class ObjectProgramWriter {
 	//given command; those records will be appended at the end
 	private void modify(ModifiableCommand c) {
 		Expression expr = c.getExpression();
-		//Only modify relative expressions
-		if (expr.isAbsolute()) {
-			return; 
-		}
-		//Relative addressing (probably unextended) Format34 instructions require no modification
-		if (c instanceof Format34Instruction && !((Format34Instruction) c).isAbsoluteAddressing()) {
-			return;
-		}
 		//Of the mod record
 		int start = program.getLocationCounter() + c.getOffset();
 		int stride = c.getStride();
+		//Make mod records for external symbols. Period.
 		for (Term term : expr.getExternalSymbols()) {
 			mods.add(new ModificationRecord(start, stride, term.getSymbol().getName(), term.isPositive()));
 		}
-		//Program relative modification record iff |netSign| == 1
-		int netSign = expr.getNetSign();
-		int abs = Math.abs(netSign); 
-		//If >1, then there would require multiple program relative modification records
-		//Is this even allowed? 
-		for (int i = 0; i < abs; i++) {
-			mods.add(new ModificationRecord(start, stride, program.getName(), netSign > 0));
+		//Number of program relative modification records equal to |netSign|. 
+		//The signs of these records are equal to sign(netSign).
+		if (c.isAbsolute()) {
+			int netSign = expr.getNetSign();
+			int abs = Math.abs(netSign); 
+			//If >1, then there would require multiple program relative modification records
+			//Is this even allowed? 
+			for (int i = 0; i < abs; i++) {
+				mods.add(new ModificationRecord(start, stride, program.getName(), netSign > 0));
+			}
 		}
-		//If 0, then no record
 	}
 	public void writeModificationAndEndRecords() {
 		writeCurrentTextRecord();
@@ -552,7 +566,9 @@ class ObjectProgramWriter {
 			}
 		}
 		out.print('E');
-		out.printf("%06X", program.getFirst());
+		if (program.isRunnable()) {
+			out.printf("%06X", program.getFirst());
+		}
 		out.println();
 	}
 }
@@ -647,8 +663,7 @@ class Lexer implements Locatable {
 		if (c == '.') {
 			StringBuilder comment = new StringBuilder();
 			//read until the next line
-			while (!isLineSeparator(c = Character.toUpperCase(scanner.peek())) 
-				&& c != Scanner.EOS) {
+			while (!isLineSeparator(c = scanner.peek()) && c != Scanner.EOS) {
 				scanner.next();
 				comment.append(c);
 			}
@@ -866,6 +881,7 @@ class Parser implements Locatable {
 				default: throw new IllegalStateException(mnemonic.toString());
 				}
 			}
+			result.setMnemonic(mnemonic);
 			result.setLabel(label);
 			//Get all whitespace until comment
 			//Or no whitespace separating the comment from the rest of the command
@@ -1085,7 +1101,11 @@ class Parser implements Locatable {
 			ExpressionNode left = nodes.pop();
 			nodes.add(new ExpressionOperator(operator, left, right));
 		}
-		return new Expression(nodes.pop());
+		if (nodes.size() > 0) {
+			return new Expression(nodes.pop());	
+		} else {
+			return null;
+		}
 	}
 	@Override
 	public int getRow() {
@@ -1308,6 +1328,9 @@ class SicXeAssm {
 			}
 			//Add symbols to symtab
 			if (c.getLabel() != null) {
+				if (program.getSymbol(c.getLabel()) != null) {
+					throw new AssembleError(c, "Duplicate symbol " + c.getLabel());
+				}
 				program.put(c.getLabel(), program.getLocationCounter(), false);
 			}
 			//Increment locctr by size
@@ -1335,7 +1358,10 @@ class SicXeAssm {
 		object.writeHeaderReferAndDefineRecords();
 		for (Command c : commands) {
 			if (c instanceof ExpressionCommand) {
-				((ExpressionCommand) c).getExpression().evaluate(c, program);
+				Expression expr = ((ExpressionCommand) c).getExpression();
+				if (expr != null) { //END Directive has null expression sometimes
+					expr.evaluate(c, program);
+				}
 			}
 			assembler.assemble(c);
 			listing.write(c);
@@ -1387,11 +1413,12 @@ class SicXeAssm {
 	}
 }
 
-//Convenience class that implements label, comment, and line methods
+//Convenience class that implements label, comment, line, and mnemonic methods
 abstract class AbstractCommand implements Command {
 	private String label;
 	private String comment;
 	private int line;
+	private Mnemonic mnemonic;
 	@Override
 	public void setLabel(String label) {
 		this.label = label;
@@ -1416,16 +1443,20 @@ abstract class AbstractCommand implements Command {
 	public int getLine() {
 		return line;
 	}
+	@Override
+	public void setMnemonic(Mnemonic mnemonic) {
+		this.mnemonic = mnemonic;
+	}
+	@Override
+	public Mnemonic getMnemonic() {
+		return mnemonic;
+	}
 }
 
 class Comment extends AbstractCommand {
 	@Override
 	public int getSize() {
 		return 0;
-	}
-	@Override
-	public String getName() {
-		return null;
 	}
 	@Override
 	public String getArgument() {
@@ -1446,10 +1477,6 @@ class BaseDirective extends AbstractCommand implements ExpressionCommand {
 	public int getSize() {
 		return 0;
 	}
-	@Override
-	public String getName() {
-		return " BASE";
-	}
 }
 
 class ByteDirective extends AbstractCommand implements WriteableCommand {
@@ -1466,10 +1493,6 @@ class ByteDirective extends AbstractCommand implements WriteableCommand {
 		for (byte b : data.toBytes()) {
 			buffer[pos++] = b;
 		}
-	}
-	@Override
-	public String getName() {
-		return " BYTE";
 	}
 	@Override
 	public String getArgument() {
@@ -1496,10 +1519,6 @@ class EndDirective extends AbstractCommand implements ExpressionCommand {
 	public int getSize() {
 		return 0;
 	}
-	@Override
-	public String getName() {
-		return " END";
-	}
 	//The only expression command that might contain a null expression
 	@Override
 	public String getArgument() {
@@ -1521,10 +1540,6 @@ class ExtdefDirective extends AbstractCommand {
 	@Override
 	public int getSize() {
 		return 0;
-	}
-	@Override
-	public String getName() {
-		return " EXTDEF";
 	}
 	@Override
 	public String getArgument() {
@@ -1552,10 +1567,6 @@ class ExtrefDirective extends AbstractCommand {
 		return 0;
 	}
 	@Override
-	public String getName() {
-		return " EXTREF";
-	}
-	@Override
 	public String getArgument() {
 		StringBuilder result = new StringBuilder(" ");
 		for (int i = 0; i < symbols.size(); i++) {
@@ -1572,10 +1583,6 @@ class NoBaseDirective extends AbstractCommand {
 	@Override
 	public int getSize() {
 		return 0;
-	}
-	@Override
-	public String getName() {
-		return " NOBASE";
 	}
 	@Override
 	public String getArgument() {
@@ -1596,10 +1603,6 @@ class OrgDirective extends AbstractCommand implements ExpressionCommand {
 	public int getSize() {
 		return 0;
 	}
-	@Override
-	public String getName() {
-		return " ORG";
-	}
 }
 
 class ResbDirective extends AbstractCommand {
@@ -1610,10 +1613,6 @@ class ResbDirective extends AbstractCommand {
 	@Override
 	public int getSize() {
 		return numBytes;
-	}
-	@Override
-	public String getName() {
-		return " RESB";
 	}
 	@Override
 	public String getArgument() {
@@ -1629,10 +1628,6 @@ class ReswDirective extends AbstractCommand {
 	@Override
 	public int getSize() {
 		return numWords * 3;
-	}
-	@Override
-	public String getName() {
-		return " RESW";
 	}
 	@Override
 	public String getArgument() {
@@ -1651,10 +1646,6 @@ class StartDirective extends AbstractCommand {
 	@Override
 	public int getSize() {
 		return 0;
-	}
-	@Override
-	public String getName() {
-		return " START";
 	}
 	@Override
 	public String getArgument() {
@@ -1695,12 +1686,12 @@ class WordDirective extends AbstractCommand implements ModifiableCommand {
 		return 6; //Again, the entire word
 	}
 	@Override
-	public String getName() {
-		return " WORD";
-	}
-	@Override
 	public String getArgument() {
 		return " " + expr.toString();
+	}
+	@Override
+	public boolean isAbsolute() {
+		return true; //Always displays the absolute address.
 	}
 }
 
@@ -1736,17 +1727,14 @@ enum AddressMode {
 	}
 }
 
-class Format1Instruction extends Instruction {
-	public Format1Instruction(Mnemonic mnemonic) {
-		super(mnemonic);
-	}
+class Format1Instruction extends AbstractCommand implements WriteableCommand {
 	@Override
 	public int getSize() {
 		return 1;
 	}
 	@Override
 	public void write(byte[] buffer, int pos) {
-		buffer[pos] = mnemonic.getOpcode();
+		buffer[pos] = getMnemonic().getOpcode();
 	}
 	@Override
 	public String getArgument() {
@@ -1754,7 +1742,7 @@ class Format1Instruction extends Instruction {
 	}
 }
 
-class Format2Instruction extends Instruction {
+class Format2Instruction extends AbstractCommand implements WriteableCommand {
 	//The different kinds of Format2 instructions use different fields:
 	//Format2R uses only r1 (but not r2)
 	//Format2N uses only n; (neither r1 nor r2)
@@ -1766,24 +1754,20 @@ class Format2Instruction extends Instruction {
 	//to be assembled
 	private byte argument;
 	//Constructs a Format2R instruction, where r is a register
-	public Format2Instruction(Mnemonic mnemonic, String r) {
-		super(mnemonic);
+	public Format2Instruction(String r) {
 		r1 = r;
 	}
 	//Constructs a Format2N instruction, where n is 0 to 15, inclusive
-	public Format2Instruction(Mnemonic mnemonic, byte n) {
-		super(mnemonic);
+	public Format2Instruction(byte n) {
 		this.n = n;
 	}
 	//Constructs a Format2RR instruction, where r1 and r2 are each registers
-	public Format2Instruction(Mnemonic mnemonic, String r1, String r2) {
-		super(mnemonic);
+	public Format2Instruction(String r1, String r2) {
 		this.r1 = r1;
 		this.r2 = r2;
 	}
 	//Constructs a Format2RN instruction, where n is 1 to 16, inclusive
-	public Format2Instruction(Mnemonic mnemonic, String r, byte n) {
-		super(mnemonic);
+	public Format2Instruction(String r, byte n) {
 		r2 = r;
 		this.n = n;
 	}
@@ -1818,22 +1802,22 @@ class Format2Instruction extends Instruction {
 	}
 	@Override
 	public void write(byte[] buffer, int pos) {
-		buffer[pos] 	= mnemonic.getOpcode();
+		buffer[pos] 	= getMnemonic().getOpcode();
 		buffer[pos + 1] = argument;
 	}
 	@Override
 	public String getArgument() {
-		switch(mnemonic.getFormat()) {
+		switch(getMnemonic().getFormat()) {
 		case FORMAT2N: return " " + Integer.toString(n);
 		case FORMAT2R: return " " + r1;
 		case FORMAT2RN: return " " + r2 + "," + n;
 		case FORMAT2RR: return " " + r1 + "," + r2;
-		default: throw new IllegalStateException(mnemonic.getFormat().toString());
+		default: throw new IllegalStateException(getMnemonic().getFormat().toString());
 		}
 	}
 }
 
-class Format34Instruction extends Instruction implements ModifiableCommand {
+class Format34Instruction extends AbstractCommand implements ModifiableCommand {
 	//Provided by constructor at parse-time
 	private boolean extended;
 	private TargetMode target;
@@ -1844,9 +1828,8 @@ class Format34Instruction extends Instruction implements ModifiableCommand {
 	private AddressMode address;
 	//Format34M
 	//If indexed, then TargetMode must be Simple
-	public Format34Instruction(boolean extended, Mnemonic mnemonic, 
-		TargetMode target, Expression expr, boolean indexed) {
-		super(mnemonic);
+	public Format34Instruction(boolean extended, TargetMode target, 
+		Expression expr, boolean indexed) {
 		this.extended = extended;
 		this.target = target;
 		this.expr = expr;
@@ -1854,9 +1837,9 @@ class Format34Instruction extends Instruction implements ModifiableCommand {
 	}
 	//TODO can you extend a Format34 Instruction? RSUB is the only known one
 	//Format34 
-	public Format34Instruction(boolean extended, Mnemonic mnemonic) {
+	public Format34Instruction(boolean extended) {
 		//Zero out the expression
-		this(extended, mnemonic, TargetMode.SIMPLE_XE, 
+		this(extended, TargetMode.SIMPLE_XE, 
 			new Expression(new ExpressionNumber(0)), false);
 	}
 	public void setAddressMode(AddressMode address) {
@@ -1880,8 +1863,8 @@ class Format34Instruction extends Instruction implements ModifiableCommand {
 	public boolean isExtended() {
 		return extended;
 	}
-	//Otherwise, some sort of relative: PC or base
-	public boolean isAbsoluteAddressing() {
+	@Override
+	public boolean isAbsolute() {
 		return address == AddressMode.ABSOLUTE;
 	}
 	@Override
@@ -1894,7 +1877,7 @@ class Format34Instruction extends Instruction implements ModifiableCommand {
 	}
 	@Override
 	public void write(byte[] buffer, int pos) {
-		buffer[pos] = (byte)(mnemonic.getOpcode() | target.getNiMask());
+		buffer[pos] = (byte)(getMnemonic().getOpcode() | target.getNiMask());
 		if (extended) {
 			buffer[pos + 1] = (byte)((argument >> 16));
 			buffer[pos + 2] = (byte)(argument >> 8);
@@ -1915,11 +1898,11 @@ class Format34Instruction extends Instruction implements ModifiableCommand {
 	}
 	@Override
 	public String getName() {
-		return (extended ? '+' : ' ') + mnemonic.getName();
+		return (extended ? '+' : ' ') + getMnemonic().getName();
 	}
 	@Override
 	public String getArgument() {
-		if (mnemonic.getFormat() == Format.FORMAT34) {
+		if (getMnemonic().getFormat() == Format.FORMAT34) {
 			return null; //This is bad. Really really bad.
 		}
 		StringBuilder result = new StringBuilder();
@@ -1933,18 +1916,6 @@ class Format34Instruction extends Instruction implements ModifiableCommand {
 			result.append(",X");
 		}
 		return result.toString();
-	}
-}
-
-abstract class Instruction extends AbstractCommand implements
-		WriteableCommand {
-	protected Mnemonic mnemonic;
-	public Instruction(Mnemonic mnemonic) {
-		this.mnemonic = mnemonic;
-	}
-	@Override
-	public String getName() {
-		return " " + mnemonic.getName();
 	}
 }
 
@@ -1978,6 +1949,10 @@ interface ModifiableCommand extends ExpressionCommand, WriteableCommand {
 	int getOffset();
 	//The number of half-bytes to modify the expression, starting at the offset.
 	int getStride();
+	//Whether the assembled value in the object code is absolutely the expression's
+	//value. Or, false, if the value in the code is relative to something else.
+	//This is only relevant to modifying the local symbols in the expression.
+	boolean isAbsolute();
 }
 
 //Represents a command that writes actual object code
@@ -2007,9 +1982,14 @@ interface Command {
 	//Gets the line number for this command, or a negative number if this 
 	//command was not in the source
 	int getLine();
+	void setMnemonic(Mnemonic mnemonic);
+	//Gets the mnemonic, or null if there is no mnemonic
+	Mnemonic getMnemonic();
 	//Listing file methods
 	//Returns a string containing a mnemonic name
-	String getName();
+	default String getName() {
+		return " " + getMnemonic().getName();
+	}
 	//Returns a string containing arguments (to the right of name)
 	//Or null if there are no arguments
 	String getArgument();
@@ -2082,6 +2062,9 @@ interface ExpressionNode {
 	void write(StringBuilder infix);
 	//Appends relative terms in this expression to the list
 	//Also appends external symbols in this expression
+	//If a symbol needs a mod record, Then it is added to the list
+	//NOTE: Relative symbols using PC or BASE relative addressing do NOT
+	//need mod records; so, the converse is not true
 	void addTerms(List<Term> terms, Program program);
 }
 
@@ -2134,12 +2117,17 @@ class ExpressionOperator implements ExpressionNode {
 	public void write(StringBuilder infix) {
 		//Whether to parenthesize the left
 		boolean l = left instanceof ExpressionOperator
-			&& ((ExpressionOperator)left).operator.getPrecedence()
-			< operator.getPrecedence();
+			&& ((ExpressionOperator)left).operator.precedence
+			< operator.precedence;
 		//Likewise for the right
-		boolean r = right instanceof ExpressionOperator
-			&& ((ExpressionOperator)right).operator.getPrecedence()
-			< operator.getPrecedence();
+		boolean r;
+		if (right instanceof ExpressionOperator) {
+			//This hard-coded solution is so trashy...
+			r = operator == ExpressionOperator.Type.SUB
+				|| ((ExpressionOperator)right).operator.precedence < operator.precedence;
+		} else {
+			r = false;
+		}
 		if (l) infix.append('(');
 		left.write(infix);
 		if (l) infix.append(')');
@@ -2234,7 +2222,9 @@ class ExpressionSymbol implements ExpressionNode {
 	}
 	@Override
 	public void addTerms(List<Term> terms, Program program) {
-		terms.add(new Term(symbol));
+		if (!symbol.isAbsolute()) {
+			terms.add(new Term(symbol));	
+		}
 	}
 }
 
@@ -2307,6 +2297,7 @@ class Expression {
 			Symbol symbol = term.getSymbol();
 			//Star terms have null symbol
 			if (symbol == null) {
+				netSign++;
 				continue;
 			}
 			if (symbol.isExternal()) {
@@ -2333,6 +2324,8 @@ class Expression {
 class Program {
 	private String name;
 	private int start;
+	//The address of first instruction, or an integer less than 0 if
+	//there is no first instruction (not a runnable program)
 	private int first;
 	private int size;
 	//The contents of the base register, or, an integer less than 0 if
@@ -2362,8 +2355,15 @@ class Program {
 	public void setFirst(int first) {
 		this.first = first;
 	}
+	public void disableFirst() {
+		first = -1;
+	}
 	public int getFirst() {
 		return first;
+	}
+	//Whether there's a first...
+	public boolean isRunnable() {
+		return first >= 0;
 	}
 	public int getSize() {
 		return size;
@@ -2466,7 +2466,7 @@ class Symbol {
 class Test {
 	public static void main(String[] args) throws FileNotFoundException {
 		SicXeAssm asm = new SicXeAssm(
-				new BufferedReader(new FileReader("test.txt")));
+				new BufferedReader(new FileReader("files\\fig216.txt")));
 		asm.passOne();
 		PrintWriter lst = new PrintWriter(System.err);
 		PrintWriter obj = new PrintWriter(System.out);

@@ -99,17 +99,18 @@ public class Parser implements Locatable {
 			} else {
 				//Instruction
 				switch(mnemonic.getFormat()) {
-				case FORMAT1: result = new Format1Instruction(mnemonic); break;
-				case FORMAT2N: result = parseFormat2NCommand(mnemonic); break;
-				case FORMAT2R: result = parseFormat2RCommand(mnemonic); break;
-				case FORMAT2RN: result = parseFormat2RNCommand(mnemonic); break;
-				case FORMAT2RR: result = parseFormat2RRCommand(mnemonic); break;
-				case FORMAT34: result = new Format34Instruction(extended, mnemonic); break;
-				case FORMAT34M: result = parseFormat34MCommand(extended, mnemonic); break;
+				case FORMAT1: result = new Format1Instruction(); break;
+				case FORMAT2N: result = parseFormat2NCommand(); break;
+				case FORMAT2R: result = parseFormat2RCommand(); break;
+				case FORMAT2RN: result = parseFormat2RNCommand(); break;
+				case FORMAT2RR: result = parseFormat2RRCommand(); break;
+				case FORMAT34: result = new Format34Instruction(extended); break;
+				case FORMAT34M: result = parseFormat34MCommand(extended); break;
 				default: throw new IllegalStateException(mnemonic.toString());
 				}
 			}
 			
+			result.setMnemonic(mnemonic);
 			result.setLabel(label);
 			//Get all whitespace until comment
 			//Or no whitespace separating the comment from the rest of the command
@@ -130,40 +131,39 @@ public class Parser implements Locatable {
 		return result;
 	}
 	
-	//Precondition: mnemonic.getFormat() == Format.FORMAT2N
 	//Post condition: do not consume the new line at the end of the command.
 	//that new line is consumed by next().
 	//Likewise for related parse methods
-	private Command parseFormat2NCommand(Mnemonic mnemonic) {
+	private Command parseFormat2NCommand() {
 		lexer.expectWhitespace();
 		int n = lexer.expectNumber();
-		return new Format2Instruction(mnemonic, (byte)n);
+		return new Format2Instruction((byte)n);
 	}
 	
-	private Command parseFormat2RCommand(Mnemonic mnemonic) {
+	private Command parseFormat2RCommand() {
 		lexer.expectWhitespace();
 		String r = lexer.expectSymbol();
-		return new Format2Instruction(mnemonic, r);
+		return new Format2Instruction(r);
 	}
 	
-	private Command parseFormat2RRCommand(Mnemonic mnemonic) {
+	private Command parseFormat2RRCommand() {
 		lexer.expectWhitespace();
 		String r1 = lexer.expectSymbol();
 		lexer.expect(',');
 		String r2 = lexer.expectSymbol();
 		
-		return new Format2Instruction(mnemonic, r1, r2);
+		return new Format2Instruction(r1, r2);
 	}
 	
-	private Command parseFormat2RNCommand(Mnemonic mnemonic) {
+	private Command parseFormat2RNCommand() {
 		lexer.expectWhitespace();
 		String r = lexer.expectSymbol();
 		lexer.expect(',');
 		int n = lexer.expectNumber();
-		return new Format2Instruction(mnemonic, r, (byte)n);
+		return new Format2Instruction(r, (byte)n);
 	}
 	
-	private Command parseFormat34MCommand(boolean extended, Mnemonic mnemonic) {
+	private Command parseFormat34MCommand(boolean extended) {
 		lexer.expectWhitespace();
 		
 		//Figure out what target mode
@@ -190,7 +190,7 @@ public class Parser implements Locatable {
 			indexed = true;
 		}
 		
-		return new Format34Instruction(extended, mnemonic, target, expr, indexed);
+		return new Format34Instruction(extended, target, expr, indexed);
 	}
 	
 	//Precondition: START mnemonic token was already consumed.

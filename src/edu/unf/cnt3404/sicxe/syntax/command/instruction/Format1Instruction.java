@@ -1,13 +1,10 @@
 package edu.unf.cnt3404.sicxe.syntax.command.instruction;
 
-import edu.unf.cnt3404.sicxe.global.Mnemonic;
+import edu.unf.cnt3404.sicxe.syntax.command.AbstractCommand;
+import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
 
-public class Format1Instruction extends Instruction {
+public class Format1Instruction extends AbstractCommand implements WriteableCommand {
 
-	public Format1Instruction(Mnemonic mnemonic) {
-		super(mnemonic);
-	}
-	
 	@Override
 	public int getSize() {
 		return 1;
@@ -15,7 +12,7 @@ public class Format1Instruction extends Instruction {
 
 	@Override
 	public void write(byte[] buffer, int pos) {
-		buffer[pos] = mnemonic.getOpcode();
+		buffer[pos] = getMnemonic().getOpcode();
 	}
 
 	@Override

@@ -29,11 +29,6 @@ public class EndDirective extends AbstractCommand implements ExpressionCommand {
 		return 0;
 	}
 
-	@Override
-	public String getName() {
-		return " END";
-	}
-
 	//The only expression command that might contain a null expression
 	@Override
 	public String getArgument() {

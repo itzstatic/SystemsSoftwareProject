@@ -21,9 +21,4 @@ public class OrgDirective extends AbstractCommand implements ExpressionCommand {
 	public int getSize() {
 		return 0;
 	}
-
-	@Override
-	public String getName() {
-		return " ORG";
-	}
 }

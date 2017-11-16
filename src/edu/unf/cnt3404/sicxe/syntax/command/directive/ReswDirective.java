@@ -16,11 +16,6 @@ public class ReswDirective extends AbstractCommand {
 	}
 
 	@Override
-	public String getName() {
-		return " RESW";
-	}
-
-	@Override
 	public String getArgument() {
 		return " " + Integer.toString(numWords);
 	}

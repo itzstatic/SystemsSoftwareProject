@@ -20,11 +20,6 @@ public class StartDirective extends AbstractCommand {
 	}
 
 	@Override
-	public String getName() {
-		return " START";
-	}
-
-	@Override
 	public String getArgument() {
 		return " " + Integer.toString(start);
 	}

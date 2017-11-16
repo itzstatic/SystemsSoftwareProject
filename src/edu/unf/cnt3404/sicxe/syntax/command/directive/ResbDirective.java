@@ -16,11 +16,6 @@ public class ResbDirective extends AbstractCommand {
 	}
 
 	@Override
-	public String getName() {
-		return " RESB";
-	}
-
-	@Override
 	public String getArgument() {
 		return " " + Integer.toString(numBytes);
 	}

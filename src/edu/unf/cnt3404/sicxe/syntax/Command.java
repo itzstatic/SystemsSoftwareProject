@@ -1,5 +1,7 @@
 package edu.unf.cnt3404.sicxe.syntax;
 
+import edu.unf.cnt3404.sicxe.global.Mnemonic;
+
 
 //Represents a line of useful code in a SicXe program.
 //A command is created when the source is parsed, and the location counter
@@ -24,9 +26,19 @@ public interface Command {
 	//command was not in the source
 	int getLine();
 	
+	void setMnemonic(Mnemonic mnemonic);
+	//Gets the mnemonic, or null if there is no mnemonic
+	Mnemonic getMnemonic();
+	
 	//Listing file methods
 	//Returns a string containing a mnemonic name
-	String getName();
+	default String getName() {
+		Mnemonic mnemonic = getMnemonic();
+		if (mnemonic == null) {
+			return null;
+		}
+		return " " + mnemonic.getName();
+	}
 	//Returns a string containing arguments (to the right of name)
 	//Or null if there are no arguments
 	String getArgument();

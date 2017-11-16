@@ -20,11 +20,6 @@ public class ExtdefDirective extends AbstractCommand {
 	public int getSize() {
 		return 0;
 	}
-	
-	@Override
-	public String getName() {
-		return " EXTDEF";
-	}
 
 	@Override
 	public String getArgument() {

@@ -9,11 +9,6 @@ public class Comment extends AbstractCommand {
 	}
 
 	@Override
-	public String getName() {
-		return null;
-	}
-
-	@Override
 	public String getArgument() {
 		return null;
 	}

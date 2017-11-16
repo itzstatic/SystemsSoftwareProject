@@ -22,11 +22,6 @@ public class ExtrefDirective extends AbstractCommand {
 	}
 
 	@Override
-	public String getName() {
-		return " EXTREF";
-	}
-
-	@Override
 	public String getArgument() {
 		StringBuilder result = new StringBuilder(" ");
 		for (int i = 0; i < symbols.size(); i++) {

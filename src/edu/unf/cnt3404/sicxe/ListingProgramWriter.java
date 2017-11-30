@@ -1,7 +1,9 @@
 package edu.unf.cnt3404.sicxe;
 
 import java.io.PrintWriter;
+import java.util.Map;
 
+import edu.unf.cnt3404.sicxe.parse.AssembleError;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.Comment;
@@ -13,16 +15,20 @@ public class ListingProgramWriter {
 	private Program program;
 	private Alignment align;
 	private PrintWriter out;
+	private Map<Integer, AssembleError> errors;
 	
-	public ListingProgramWriter(Program program, Alignment align, PrintWriter out) {
+	public ListingProgramWriter(Program program, Alignment align, 
+			Map<Integer, AssembleError> errors, PrintWriter out) {
 		this.program = program;
 		this.align = align;
+		this.errors = errors;
 		this.out = out;
 	}
 	
 	//Appends the given command to the listing
 	public void write(Command c) {
-		writeColumn(align.getMaxLineLength(), c.getLine());
+		int line = c.getLine();
+		writeColumn(align.getMaxLineLength(), line);
 		if (c instanceof Comment) {
 			out.printf("%8s", ""); //Location counter place holder
 			writeColumn(align.getMaxNameLength(), "."); //Place a dot in the name column
@@ -32,7 +38,10 @@ public class ListingProgramWriter {
 			writeColumn(align.getMaxLabelLength(), c.getLabel());
 			writeColumn(align.getMaxNameLength(), c.getName());
 			writeColumn(align.getMaxArgumentLength(), c.getArgument());
-			if (c instanceof WriteableCommand) {
+			
+			//If there's an error, then don't output code
+			AssembleError e = errors.get(line);
+			if (e == null && c instanceof WriteableCommand) {
 				byte[] buffer = new byte[c.getSize()];
 				((WriteableCommand) c).write(buffer, 0);
 				for (byte b : buffer) {
@@ -42,6 +51,11 @@ public class ListingProgramWriter {
 			}
 			if (c.getComment() != null) {
 				out.print("." + c.getComment());	
+			}
+			//Then write the error
+			if (e != null) {
+				out.println();
+				out.printf("[ERROR] (Row %d, Col %d) %s", e.getRow(), e.getCol(), e.getMessage());
 			}
 		}
 		out.println();

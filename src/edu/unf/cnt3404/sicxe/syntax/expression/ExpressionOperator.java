@@ -3,6 +3,7 @@ package edu.unf.cnt3404.sicxe.syntax.expression;
 import java.util.ArrayList;
 import java.util.List;
 
+import edu.unf.cnt3404.sicxe.parse.AssembleError;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 
@@ -22,7 +23,7 @@ public class ExpressionOperator implements ExpressionNode {
 	}
 	
 	@Override
-	public int getValue(Command command, Program program) {
+	public int getValue(Command command, Program program) throws AssembleError {
 		int l = left.getValue(command, program);
 		int r = right.getValue(command, program);
 		switch(operator) {

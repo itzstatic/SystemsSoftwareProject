@@ -49,7 +49,7 @@ public class Lexer implements Locatable {
 	//Gets the next token and consumes it.
 	//Throws an exception if there is no available token.
 	//Never returns null
-	public Token next() {
+	public Token next() throws AssembleError {
 		//If buffer is not null, then there was a call to peek() AFTER the last 
 		//call to next(). in other words, only consume the buffer
 		if (buffer != null) {
@@ -155,7 +155,11 @@ public class Lexer implements Locatable {
 			if (scanner.peek() == Scanner.EOS) {
 				return null;
 			}
-			return buffer = next();
+			try {
+				return buffer = next();
+			} catch (AssembleError e) {
+				return null;
+			}
 		} 
 		return buffer;
 	}
@@ -166,7 +170,13 @@ public class Lexer implements Locatable {
 		Token token = peek();
 		boolean result = token != null && token.is(Token.Type.SIMPLE) && token.is(c);
 		if (result) {
-			next();
+			try {
+				next();
+			} catch (AssembleError e) {
+				//If next throws an exception, then peek() should have returned null
+				//So result should have been false
+				throw new IllegalStateException();
+			}
 		}
 		return result;
 	}
@@ -176,7 +186,13 @@ public class Lexer implements Locatable {
 	private Token accept(Token.Type type) {
 		Token result = peek();
 		if (result != null && result.is(type)) {
-			next();
+			try {
+				next();
+			} catch (AssembleError e) {
+				//If next throws an exception, then peek() should have returned null
+				//So result should have been false
+				throw new IllegalStateException();
+			}
 			return result;
 		}
 		return null;
@@ -216,7 +232,7 @@ public class Lexer implements Locatable {
 	
 	//Parses the next token and returns, or throws an exception if the next token was not
 	//a simple token, or did not match the given character.
-	public void expect(char c) {
+	public void expect(char c) throws AssembleError {
 		Token token = next();
 		if (!token.is(Token.Type.SIMPLE) || !token.is(c)) {
 			throw new AssembleError(token, "Expected " + c + " not " + token);
@@ -225,7 +241,7 @@ public class Lexer implements Locatable {
 	
 	//Parses the next token and returns it, or throws an exception if the next token was 
 	//not of the given type
-	private Token expect(Token.Type type) {
+	private Token expect(Token.Type type) throws AssembleError {
 		Token result = next();
 		if (!result.is(type)) {
 			throw new AssembleError(result, "Expected " + type + " not " + result);
@@ -233,23 +249,23 @@ public class Lexer implements Locatable {
 		return result;
 	}
 	
-	public void expectWhitespace() {
+	public void expectWhitespace() throws AssembleError {
 		expect(Token.Type.WHITESPACE);
 	}
 	
-	public Mnemonic expectMnemonic() {
+	public Mnemonic expectMnemonic() throws AssembleError {
 		return expect(Token.Type.MNEMONIC).asMnemonic();
 	}
 	
-	public int expectNumber() {
+	public int expectNumber() throws AssembleError {
 		return expect(Token.Type.NUMBER).asNumber();
 	}
 
-	public String expectSymbol() {
+	public String expectSymbol() throws AssembleError {
 		return expect(Token.Type.SYMBOL).asSymbol();
 	}
 	
-	public Data expectData() {
+	public Data expectData() throws AssembleError {
 		return expect(Token.Type.DATA).asData();
 	}
 }

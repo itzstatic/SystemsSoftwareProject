@@ -42,10 +42,10 @@ public class Parser implements Locatable {
 	
 	//Returns the next command from the source, or, null if there
 	//are no commands left and the parsing is finished
-	public Command next() {
+	public Command next() throws AssembleError {
 		//Advance to the beginning of the next useful token
 		while (lexer.acceptWhitespace() || lexer.acceptNewline());
-	
+		
 		//Check for end
 		if (lexer.peek() == null) {
 			return null;
@@ -56,7 +56,8 @@ public class Parser implements Locatable {
 		int line = lexer.getRow();
 		
 		//Comment only on this line
-		String comment = lexer.acceptComment();
+		String comment; 
+		comment = lexer.acceptComment();
 		if (comment != null) {
 			result = new Comment();
 		//Non-comment that has a label and mnemonic
@@ -72,13 +73,6 @@ public class Parser implements Locatable {
 			
 			//Get the mnemonic
 			Mnemonic mnemonic = lexer.expectMnemonic();
-			
-			//Ensure that the source only extends a F34 mnemonic
-			//This implies someone can extend an RSUB (The only F34 mnemonic)
-			if (extended && mnemonic.getFormat() != Format.FORMAT34 
-				&& mnemonic.getFormat() != Format.FORMAT34M) {
-				throw new AssembleError(lexer, "Cannot extend mnemonic " + mnemonic);
-			}
 			
 			//Parse the rest of it, which depends on the Mnemonic itself
 			if (mnemonic.getFormat() == null) {
@@ -110,6 +104,13 @@ public class Parser implements Locatable {
 				}
 			}
 			
+			//Ensure that the source only extends a F34 mnemonic
+			//This implies someone can extend an RSUB (The only F34 mnemonic)
+			if (extended && (mnemonic == null || (mnemonic.getFormat() != Format.FORMAT34 
+				&& mnemonic.getFormat() != Format.FORMAT34M))) {
+				throw new AssembleError(lexer, "Cannot extend mnemonic " + mnemonic);
+			}
+			
 			result.setMnemonic(mnemonic);
 			result.setLabel(label);
 			//Get all whitespace until comment
@@ -134,19 +135,19 @@ public class Parser implements Locatable {
 	//Post condition: do not consume the new line at the end of the command.
 	//that new line is consumed by next().
 	//Likewise for related parse methods
-	private Command parseFormat2NCommand() {
+	private Command parseFormat2NCommand() throws AssembleError {
 		lexer.expectWhitespace();
 		int n = lexer.expectNumber();
 		return new Format2Instruction((byte)n);
 	}
 	
-	private Command parseFormat2RCommand() {
+	private Command parseFormat2RCommand() throws AssembleError {
 		lexer.expectWhitespace();
 		String r = lexer.expectSymbol();
 		return new Format2Instruction(r);
 	}
 	
-	private Command parseFormat2RRCommand() {
+	private Command parseFormat2RRCommand() throws AssembleError {
 		lexer.expectWhitespace();
 		String r1 = lexer.expectSymbol();
 		lexer.expect(',');
@@ -155,7 +156,7 @@ public class Parser implements Locatable {
 		return new Format2Instruction(r1, r2);
 	}
 	
-	private Command parseFormat2RNCommand() {
+	private Command parseFormat2RNCommand() throws AssembleError {
 		lexer.expectWhitespace();
 		String r = lexer.expectSymbol();
 		lexer.expect(',');
@@ -163,7 +164,7 @@ public class Parser implements Locatable {
 		return new Format2Instruction(r, (byte)n);
 	}
 	
-	private Command parseFormat34MCommand(boolean extended) {
+	private Command parseFormat34MCommand(boolean extended) throws AssembleError {
 		lexer.expectWhitespace();
 		
 		//Figure out what target mode
@@ -196,48 +197,48 @@ public class Parser implements Locatable {
 	//Precondition: START mnemonic token was already consumed.
 	//Postcondition: Do not consume the new line at the end. That is consumed by next()
 	//Likewise for other parse...Directive methods
-	private Command parseStartDirective() {
+	private Command parseStartDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		int start = lexer.expectNumber();
 		return new StartDirective(start);
 	}
 	
-	private Command parseEndDirective() {
+	private Command parseEndDirective() throws AssembleError {
 		if (lexer.acceptWhitespace()) {
 			return new EndDirective(parseExpression());
 		}
 		return new EndDirective();
 	}
 	
-	private Command parseResbDirective() {
+	private Command parseResbDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		int bytes = lexer.expectNumber();
 		return new ResbDirective(bytes);
 	}
 	
-	private Command parseReswDirective() {
+	private Command parseReswDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		int words = lexer.expectNumber();
 		return new ReswDirective(words);
 	}
 	
-	private Command parseByteDirective() {
+	private Command parseByteDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		Data data = lexer.expectData();
 		return new ByteDirective(data);
 	}
 	
-	private Command parseWordDirective() {
+	private Command parseWordDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		return new WordDirective(parseExpression());
 	}
 	
-	private Command parseBaseDirective() {
+	private Command parseBaseDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		return new BaseDirective(parseExpression());
 	}
 	
-	private Command parseExtrefDirective() {
+	private Command parseExtrefDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		List<String> symbols = new ArrayList<>();
 		do {
@@ -246,7 +247,7 @@ public class Parser implements Locatable {
 		return new ExtrefDirective(symbols);
 	}
 	
-	private Command parseExtdefDirective() {
+	private Command parseExtdefDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		List<String> symbols = new ArrayList<>();
 		do {
@@ -255,7 +256,7 @@ public class Parser implements Locatable {
 		return new ExtdefDirective(symbols);
 	}
 	
-	private Command parseOrgDirective() {
+	private Command parseOrgDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		return new OrgDirective(parseExpression());
 	}
@@ -264,7 +265,7 @@ public class Parser implements Locatable {
 	//token, a comment token, or an illegal token. Throws an exception if an illegal token 
 	//is reached. Implements Dijkstra's Shunting-Yard Algorithm to turn an infix
 	//arithmetic expression into a syntax tree
-	public Expression parseExpression() {
+	public Expression parseExpression() throws AssembleError {
 		Stack<ExpressionNode> nodes = new Stack<>();
 		//Null element in operators indicates parentheses
 		Stack<ExpressionOperator.Type> operators = new Stack<>();

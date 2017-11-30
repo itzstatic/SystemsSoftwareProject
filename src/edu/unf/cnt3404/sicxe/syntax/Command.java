@@ -1,13 +1,14 @@
 package edu.unf.cnt3404.sicxe.syntax;
 
 import edu.unf.cnt3404.sicxe.global.Mnemonic;
+import edu.unf.cnt3404.sicxe.parse.Locatable;
 
 
 //Represents a line of useful code in a SicXe program.
 //A command is created when the source is parsed, and the location counter
 //must be incremented. A command might have a corresponding label definition
 //or comment.
-public interface Command {
+public interface Command extends Locatable {
 	//Returns the number of bytes that this command would take up 
 	//in the object program. 
 	//Alternatively, the amount by which to increment location counter

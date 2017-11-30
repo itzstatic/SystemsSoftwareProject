@@ -14,6 +14,7 @@ import edu.unf.cnt3404.sicxe.parse.Scanner;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.Program;
+import edu.unf.cnt3404.sicxe.syntax.command.Comment;
 import edu.unf.cnt3404.sicxe.syntax.command.ExpressionCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtdefDirective;
@@ -28,6 +29,7 @@ public class SicXeAssm {
 	private Alignment align = new Alignment();
 	private Program program = new Program();
 	private List<Command> commands = new ArrayList<>();
+	private AssembleErrorLogger logger = new AssembleErrorLogger();
 	
 	public SicXeAssm(BufferedReader reader) {
 		parser = new Parser(new Lexer(new Scanner(reader)));
@@ -35,29 +37,37 @@ public class SicXeAssm {
 	
 	//Eval ORG and modify locctr
 	//Populate symtab with labels
-	public void passOne() {
+	public void passOne() throws AssembleError {
+		boolean beforeStart = true;
+		boolean afterEnd = false;
 		Command c = parser.next();
-		if (c == null) {
-			return; //Empty program
-		}
 		
-		if (c instanceof StartDirective) {
-			//Can a program be nameless?
-			if (c.getLabel() == null) {
-				throw new AssembleError(c, "Expected program name");
-			}
-			program.setName(c.getLabel());
-			program.setStart(((StartDirective) c).getStart());
-		} else {
-			throw new AssembleError(c, "Expected START Directive");
-		}
-		
-		program.setLocationCounter(program.getStart());
 		do {
 			align.update(c);
 			commands.add(c);
+			if (beforeStart) {
+				if (!(c instanceof StartDirective) && !(c instanceof Comment)) {
+					logger.log(c, "Expected START or comment");
+				}
+				if (c instanceof StartDirective) {
+					if (c.getLabel() == null) {
+						logger.log(c, "Expected program name");
+					}
+					program.setName(c.getLabel());
+					int start = ((StartDirective) c).getStart();
+					program.setStart(start);
+					program.setLocationCounter(start);
+					beforeStart = false;
+				}
+			} else if (afterEnd) {
+				if (!(c instanceof Comment)) {
+					logger.log(c, "Expected comment");
+				}
+			}
+			if (c instanceof EndDirective) {
+				afterEnd = true;
 			//Modify locctr by org expr
-			if (c instanceof OrgDirective) {
+			} else if (c instanceof OrgDirective) {
 				((OrgDirective) c).getExpression().evaluate(c, program);
 				program.setLocationCounter(((OrgDirective) c).getExpression().getValue());
 			//Add extdef symbols
@@ -74,7 +84,7 @@ public class SicXeAssm {
 			//Add symbols to symtab
 			if (c.getLabel() != null) {
 				if (program.getSymbol(c.getLabel()) != null) {
-					throw new AssembleError(c, "Duplicate symbol " + c.getLabel());
+					logger.log(c, "Duplicate symbol " + c.getLabel());
 				}
 				program.put(c.getLabel(), program.getLocationCounter(), false);
 			}
@@ -82,16 +92,12 @@ public class SicXeAssm {
 			//Increment locctr by size
 			program.incrementLocationCounter(c.getSize());
 			
-			if (c instanceof EndDirective) {
-				break;
-			}
-			
 			c = parser.next();
 		} while (c != null);
 		
 		//Loop terminated without an end directive
-		if (c == null) {
-			throw new AssembleError(parser, "Expected END Directive");
+		if (!afterEnd) {
+			logger.log(parser, "Expected END Directive");
 		}
 	}
 	
@@ -99,9 +105,10 @@ public class SicXeAssm {
 	//Assemble instructions and directives
 	//Write commands to listing
 	//Write commands to object file
-	public void passTwo(PrintWriter lst, PrintWriter obj) {
+	//Returns whether there are logged errors
+	public boolean passTwo(PrintWriter lst, PrintWriter obj) {
 		Assembler assembler = new Assembler(program);
-		ListingProgramWriter listing = new ListingProgramWriter(program, align, lst);
+		ListingProgramWriter listing = new ListingProgramWriter(program, align, logger.toMap(), lst);
 		ObjectProgramWriter object = new ObjectProgramWriter(program, obj);
 		
 		//Reset location counter
@@ -112,12 +119,23 @@ public class SicXeAssm {
 			if (c instanceof ExpressionCommand) {
 				Expression expr = ((ExpressionCommand) c).getExpression();
 				if (expr != null) { //END Directive has null expression sometimes
-					expr.evaluate(c, program);
+					try {
+						expr.evaluate(c, program);
+					} catch (AssembleError e) {
+						logger.log(e);
+					}
 				}
 			}
-			assembler.assemble(c);
+			try {
+				assembler.assemble(c);
+				//c.setAssembled();
+			} catch (AssembleError e) {
+				logger.log(e);
+			}
 			listing.write(c);
-			object.write(c);
+			if (!logger.hasErrors()) {
+				object.write(c);
+			}
 			if (c instanceof OrgDirective) {
 				program.setLocationCounter(((OrgDirective) c).getExpression().getValue());
 			}
@@ -125,6 +143,14 @@ public class SicXeAssm {
 		}
 		
 		object.writeModificationAndEndRecords();
+		
+		lst.flush();
+		if (!logger.hasErrors()) {
+			obj.flush();
+		}
+		
+		
+		return logger.hasErrors();
 	}
 
 	
@@ -146,7 +172,12 @@ public class SicXeAssm {
 		}
 		//Do pass one
 		SicXeAssm assm = new SicXeAssm(file);
-		assm.passOne();
+		try {	
+			assm.passOne();
+		} catch (AssembleError e) {
+			System.out.printf("Syntax error in pass 1 (Row %d, Col %d) %s", 
+				e.getRow(), e.getCol(), e.getMessage());
+		}
 		//Open .lst and .obj files
 		PrintWriter lst = null;
 		try {
@@ -162,9 +193,12 @@ public class SicXeAssm {
 			System.err.println("Cannot create object file!");
 			System.exit(4);
 		}
+		boolean errors = assm.passTwo(lst, obj);
 		//Run pass two, creating .lst and .obj file
-		assm.passTwo(lst, obj);
-		lst.flush();
-		obj.flush();
+		if (errors) {
+			System.out.println("Assembly errors in pass 2. See listing file.");
+		} else {
+			System.out.println("Assembly complete.");
+		}
 	}
 }

@@ -3,6 +3,7 @@ package edu.unf.cnt3404.sicxe.syntax;
 import java.util.ArrayList;
 import java.util.List;
 
+import edu.unf.cnt3404.sicxe.parse.AssembleError;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNode;
 import edu.unf.cnt3404.sicxe.syntax.expression.Term;
 
@@ -34,6 +35,10 @@ public class Expression {
 		
 	}
 	
+	public boolean isEvaluated() {
+		return evaluated;
+	}
+	
 	public boolean isAbsolute() {
 		return getNetSign() == 0;
 	}
@@ -45,7 +50,7 @@ public class Expression {
 		throw new RuntimeException();
 	}
 	
-	public void evaluate(Command command, Program program) {
+	public void evaluate(Command command, Program program) throws AssembleError {
 		if (evaluated) {
 			return;
 		}
@@ -59,13 +64,9 @@ public class Expression {
 		for (Term term : terms) {
 			Symbol symbol = term.getSymbol();
 			//Star terms have null symbol
-			if (symbol == null) {
-				netSign++;
-				continue;
-			}
-			if (symbol.isExternal()) {
+			if (symbol != null && symbol.isExternal()) {
 				externals.add(term);
-			} else if (!symbol.isAbsolute()) {
+			} else if (symbol == null || !symbol.isAbsolute()) {
 				netSign += (term.isPositive() ? 1 : -1);
 			}
 		}

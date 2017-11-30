@@ -74,14 +74,12 @@ class Assembler {
 		if (r2 != null) {
 			b2 = Global.REGISTERS.get(r2);
 		}
-		if (r1 == null && r2 == null) {
-			c.setArgument(n); 								//Format2N
-		} else if (r1 == null && r2 != null) {
-			c.setArgument(b2.byteValue(), (byte)(n - 1)); 	//Format2RN
-		} else if (r1 != null && r2 == null) {
-			c.setArgument(b1.byteValue()); 					//Format2R
-		} else { //r1 != null && r2 != null
-			c.setArgument(b1.byteValue(), b2.byteValue()); 	//Format2RR
+		switch(c.getMnemonic().getFormat()) {
+		case FORMAT2N: c.setArgument(n); break;
+		case FORMAT2R: c.setArgument(b1); break;
+		case FORMAT2RN: c.setArgument(b1, n); break;
+		case FORMAT2RR: c.setArgument(b1, b2); break;
+		default: throw new IllegalStateException(c.getMnemonic().getFormat().toString());
 		}
 	}
 	private void assemble(Format34Instruction c) {
@@ -871,13 +869,13 @@ class Parser implements Locatable {
 			} else {
 				//Instruction
 				switch(mnemonic.getFormat()) {
-				case FORMAT1: result = new Format1Instruction(mnemonic); break;
-				case FORMAT2N: result = parseFormat2NCommand(mnemonic); break;
-				case FORMAT2R: result = parseFormat2RCommand(mnemonic); break;
-				case FORMAT2RN: result = parseFormat2RNCommand(mnemonic); break;
-				case FORMAT2RR: result = parseFormat2RRCommand(mnemonic); break;
-				case FORMAT34: result = new Format34Instruction(extended, mnemonic); break;
-				case FORMAT34M: result = parseFormat34MCommand(extended, mnemonic); break;
+				case FORMAT1: result = new Format1Instruction(); break;
+				case FORMAT2N: result = parseFormat2NCommand(); break;
+				case FORMAT2R: result = parseFormat2RCommand(); break;
+				case FORMAT2RN: result = parseFormat2RNCommand(); break;
+				case FORMAT2RR: result = parseFormat2RRCommand(); break;
+				case FORMAT34: result = new Format34Instruction(extended); break;
+				case FORMAT34M: result = parseFormat34MCommand(extended); break;
 				default: throw new IllegalStateException(mnemonic.toString());
 				}
 			}
@@ -898,35 +896,34 @@ class Parser implements Locatable {
 		result.setComment(comment);
 		return result;
 	}
-	//Precondition: mnemonic.getFormat() == Format.FORMAT2N
 	//Post condition: do not consume the new line at the end of the command.
 	//that new line is consumed by next().
 	//Likewise for related parse methods
-	private Command parseFormat2NCommand(Mnemonic mnemonic) {
+	private Command parseFormat2NCommand() {
 		lexer.expectWhitespace();
 		int n = lexer.expectNumber();
-		return new Format2Instruction(mnemonic, (byte)n);
+		return new Format2Instruction((byte)n);
 	}
-	private Command parseFormat2RCommand(Mnemonic mnemonic) {
+	private Command parseFormat2RCommand() {
 		lexer.expectWhitespace();
 		String r = lexer.expectSymbol();
-		return new Format2Instruction(mnemonic, r);
+		return new Format2Instruction(r);
 	}
-	private Command parseFormat2RRCommand(Mnemonic mnemonic) {
+	private Command parseFormat2RRCommand() {
 		lexer.expectWhitespace();
 		String r1 = lexer.expectSymbol();
 		lexer.expect(',');
 		String r2 = lexer.expectSymbol();
-		return new Format2Instruction(mnemonic, r1, r2);
+		return new Format2Instruction(r1, r2);
 	}
-	private Command parseFormat2RNCommand(Mnemonic mnemonic) {
+	private Command parseFormat2RNCommand() {
 		lexer.expectWhitespace();
 		String r = lexer.expectSymbol();
 		lexer.expect(',');
 		int n = lexer.expectNumber();
-		return new Format2Instruction(mnemonic, r, (byte)n);
+		return new Format2Instruction(r, (byte)n);
 	}
-	private Command parseFormat34MCommand(boolean extended, Mnemonic mnemonic) {
+	private Command parseFormat34MCommand(boolean extended) {
 		lexer.expectWhitespace();
 		//Figure out what target mode
 		TargetMode target;
@@ -949,7 +946,7 @@ class Parser implements Locatable {
 			}
 			indexed = true;
 		}
-		return new Format34Instruction(extended, mnemonic, target, expr, indexed);
+		return new Format34Instruction(extended, target, expr, indexed);
 	}
 	//Precondition: START mnemonic token was already consumed.
 	//Postcondition: Do not consume the new line at the end. That is consumed by next()
@@ -1293,26 +1290,36 @@ class SicXeAssm {
 	//Eval ORG and modify locctr
 	//Populate symtab with labels
 	public void passOne() {
+		boolean beforeStart = true;
+		boolean afterEnd = false;
 		Command c = parser.next();
-		if (c == null) {
-			return; //Empty program
-		}
-		if (c instanceof StartDirective) {
-			//Can a program be nameless?
-			if (c.getLabel() == null) {
-				throw new AssembleError(c, "Expected program name");
-			}
-			program.setName(c.getLabel());
-			program.setStart(((StartDirective) c).getStart());
-		} else {
-			throw new AssembleError(c, "Expected START Directive");
-		}
-		program.setLocationCounter(program.getStart());
 		do {
 			align.update(c);
 			commands.add(c);
+			if (beforeStart) {
+				if (!(c instanceof StartDirective) && !(c instanceof Comment)) {
+					throw new AssembleError(c, "Expected START or comment");
+				}
+				if (c instanceof StartDirective) {
+					if (c.getLabel() == null) {
+						throw new AssembleError(c, "Expected program name");
+					}
+					program.setName(c.getLabel());
+					int start = ((StartDirective) c).getStart();
+					program.setStart(start);
+					program.setLocationCounter(start);
+					beforeStart = false;
+				}
+			} else if (afterEnd) {
+				if (!(c instanceof Comment)) {
+					throw new AssembleError(c, "Expected comment");
+				}
+			}
+			if (c instanceof EndDirective) {
+				afterEnd = true;
+			}
 			//Modify locctr by org expr
-			if (c instanceof OrgDirective) {
+			else if (c instanceof OrgDirective) {
 				((OrgDirective) c).getExpression().evaluate(c, program);
 				program.setLocationCounter(((OrgDirective) c).getExpression().getValue());
 			//Add extdef symbols
@@ -1335,13 +1342,10 @@ class SicXeAssm {
 			}
 			//Increment locctr by size
 			program.incrementLocationCounter(c.getSize());
-			if (c instanceof EndDirective) {
-				break;
-			}
 			c = parser.next();
 		} while (c != null);
 		//Loop terminated without an end directive
-		if (c == null) {
+		if (!afterEnd) {
 			throw new AssembleError(parser, "Expected END Directive");
 		}
 	}
@@ -1747,7 +1751,7 @@ class Format2Instruction extends AbstractCommand implements WriteableCommand {
 	//Format2R uses only r1 (but not r2)
 	//Format2N uses only n; (neither r1 nor r2)
 	//Format2RR uses r1 and r2; (both r1 and r2)
-	//Format2RN uses r2 and n; (but not r1)
+	//Format2RN uses r1 and n; (but not r2)
 	private String r1;
 	private String r2;
 	private byte n;
@@ -1768,7 +1772,7 @@ class Format2Instruction extends AbstractCommand implements WriteableCommand {
 	}
 	//Constructs a Format2RN instruction, where n is 1 to 16, inclusive
 	public Format2Instruction(String r, byte n) {
-		r2 = r;
+		r1 = r;
 		this.n = n;
 	}
 	//Sets the 4 higher order bits of the byte argument to the 4 lower bits of higher
@@ -1988,7 +1992,11 @@ interface Command {
 	//Listing file methods
 	//Returns a string containing a mnemonic name
 	default String getName() {
-		return " " + getMnemonic().getName();
+		Mnemonic mnemonic = getMnemonic();
+		if (mnemonic == null) {
+			return null;
+		}
+		return " " + mnemonic.getName();
 	}
 	//Returns a string containing arguments (to the right of name)
 	//Or null if there are no arguments
@@ -2296,13 +2304,9 @@ class Expression {
 		for (Term term : terms) {
 			Symbol symbol = term.getSymbol();
 			//Star terms have null symbol
-			if (symbol == null) {
-				netSign++;
-				continue;
-			}
-			if (symbol.isExternal()) {
+			if (symbol != null && symbol.isExternal()) {
 				externals.add(term);
-			} else if (!symbol.isAbsolute()) {
+			} else if (symbol == null || !symbol.isAbsolute()) {
 				netSign += (term.isPositive() ? 1 : -1);
 			}
 		}
@@ -2466,7 +2470,7 @@ class Symbol {
 class Test {
 	public static void main(String[] args) throws FileNotFoundException {
 		SicXeAssm asm = new SicXeAssm(
-				new BufferedReader(new FileReader("files\\fig216.txt")));
+				new BufferedReader(new FileReader("test.txt")));
 		asm.passOne();
 		PrintWriter lst = new PrintWriter(System.err);
 		PrintWriter obj = new PrintWriter(System.out);

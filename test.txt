@@ -1,5 +1,10 @@
+.Comments before
 _title	start	0
 		.Test!
 		org		_title+3
 		word	_title-* .This is a comment
+		+resw	4096
+		lda		_title
+		
 		end		_title      .Test
+	.Comments after

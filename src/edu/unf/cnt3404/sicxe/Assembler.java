@@ -21,7 +21,7 @@ public class Assembler {
 		this.program = program;
 	}
 	
-	public void assemble(Command c) {
+	public void assemble(Command c) throws AssembleError {
 		//There's got to be a better way...
 		if (c instanceof EndDirective) assemble((EndDirective)c);
 		if (c instanceof BaseDirective) assemble((BaseDirective)c);
@@ -56,8 +56,11 @@ public class Assembler {
 		
 	}
 	
-	private void assemble(Format34Instruction c) {
+	private void assemble(Format34Instruction c) throws AssembleError {
 		Expression expr = c.getExpression();
+		if (!expr.isEvaluated()) {
+			return;
+		}
 		//Format 3 instructions cannot have external symbols
 		if (!c.isExtended() && !expr.getExternalSymbols().isEmpty()) {
 			throw new AssembleError(c, "External symbols and not extended");
@@ -114,19 +117,27 @@ public class Assembler {
 	}
 
 	private void assemble(WordDirective c) {
-		c.setWord(c.getExpression().getValue());
+		Expression expr = c.getExpression();
+		if (!expr.isEvaluated()) {
+			return;
+		}
+		c.setWord(expr.getValue());
 	}
 
 	private void assemble(EndDirective c) {
 		Expression expr = c.getExpression();
 		if (expr == null) {
 			program.disableFirst();
-		} else {
+		} else if (expr.isEvaluated()){
 			program.setFirst(expr.getValue());
 		}
 	}
 
 	private void assemble(BaseDirective c) {
+		Expression expr = c.getExpression();
+		if (!expr.isEvaluated()) {
+			return;
+		}
 		program.setBase(c.getExpression().getValue());
 	}
 

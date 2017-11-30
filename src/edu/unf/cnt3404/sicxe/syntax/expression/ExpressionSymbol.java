@@ -23,7 +23,7 @@ public class ExpressionSymbol implements ExpressionNode {
 	}
 	
 	@Override
-	public int getValue(Command command, Program program) {
+	public int getValue(Command command, Program program) throws AssembleError {
 		if (symbol == null) {
 			symbol = program.getSymbol(name);
 			if (symbol == null) {

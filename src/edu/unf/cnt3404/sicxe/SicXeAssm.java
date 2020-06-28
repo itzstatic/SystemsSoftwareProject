@@ -9,6 +9,7 @@ import java.util.List;
 
 import edu.unf.cnt3404.sicxe.parse.AssembleError;
 import edu.unf.cnt3404.sicxe.parse.Lexer;
+import edu.unf.cnt3404.sicxe.parse.MacroParser;
 import edu.unf.cnt3404.sicxe.parse.Parser;
 import edu.unf.cnt3404.sicxe.parse.Scanner;
 import edu.unf.cnt3404.sicxe.syntax.Command;
@@ -17,22 +18,30 @@ import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.Comment;
 import edu.unf.cnt3404.sicxe.syntax.command.ExpressionCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.EquDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtdefDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtrefDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.LtorgDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.OrgDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.StartDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroDefinitionDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroExpansionDirective;
+import edu.unf.cnt3404.sicxe.writer.BeckObjectWriter;
 
 //Salim, Brandon Mathis, Brandon Mack
 public class SicXeAssm {
 	
-	private Parser parser;
+	private MacroParser parser;
 	private Alignment align = new Alignment();
 	private Program program = new Program();
+	private MacroPreprocessor preprocessor;
 	private List<Command> commands = new ArrayList<>();
 	private AssembleErrorLogger logger = new AssembleErrorLogger();
 	
-	public SicXeAssm(BufferedReader reader) {
-		parser = new Parser(new Lexer(new Scanner(reader)));
+	public SicXeAssm(BufferedReader reader, int tabWidth) {
+		parser = new MacroParser(
+			new Parser(new Lexer(new Scanner(reader, tabWidth))));
+		preprocessor = new MacroPreprocessor(program);
 	}
 	
 	//Eval ORG and modify locctr
@@ -44,7 +53,6 @@ public class SicXeAssm {
 		
 		do {
 			align.update(c);
-			commands.add(c);
 			if (beforeStart) {
 				if (!(c instanceof StartDirective) && !(c instanceof Comment)) {
 					logger.log(c, "Expected START or comment");
@@ -65,8 +73,20 @@ public class SicXeAssm {
 				}
 			}
 			if (c instanceof EndDirective) {
+				program.allocateLiterals(commands);
 				afterEnd = true;
 			//Modify locctr by org expr
+			}
+			commands.add(c);
+			if (c instanceof MacroDefinitionDirective) {
+				preprocessor.define((MacroDefinitionDirective) c);
+			} else if (c instanceof MacroExpansionDirective) {
+				List<Command> expandedCommands = preprocessor.expand((MacroExpansionDirective) c);
+				for (Command expandedcommand : expandedCommands) {
+					commands.add(expandedcommand);
+					program.incrementLocationCounter(expandedcommand.getSize());
+				}
+			
 			} else if (c instanceof OrgDirective) {
 				((OrgDirective) c).getExpression().evaluate(c, program);
 				program.setLocationCounter(((OrgDirective) c).getExpression().getValue());
@@ -80,15 +100,30 @@ public class SicXeAssm {
 				for (String ref : ((ExtrefDirective) c).getSymbols()) {
 					program.addExternalReference(ref);
 				}
+			//Add literals
+			} else if (c instanceof ExpressionCommand) {
+				Expression e = ((ExpressionCommand) c).getExpression();
+				if (e != null) {
+					e.collectLiterals(program);
+				}
+			//Allocate literals
+			} else if (c instanceof LtorgDirective) {
+				program.allocateLiterals(commands);
 			}
 			//Add symbols to symtab
 			if (c.getLabel() != null) {
 				if (program.getSymbol(c.getLabel()) != null) {
 					logger.log(c, "Duplicate symbol " + c.getLabel());
 				}
-				program.put(c.getLabel(), program.getLocationCounter(), false);
+				//Evaluate Equ Expressions
+				if (c instanceof EquDirective) {
+					Expression e = ((EquDirective) c).getExpression();
+					e.evaluate(c, program);
+					program.put(c.getLabel(), e.getValue(), e.isAbsolute());
+				} else {
+					program.put(c.getLabel(), program.getLocationCounter(), false);
+				}
 			}
-			
 			//Increment locctr by size
 			program.incrementLocationCounter(c.getSize());
 			
@@ -106,14 +141,15 @@ public class SicXeAssm {
 	//Write commands to listing
 	//Write commands to object file
 	//Returns whether there are logged errors
-	public boolean passTwo(PrintWriter lst, PrintWriter obj) {
+	public boolean passTwo(PrintWriter lst, PrintWriter obj, ObjectWriter object) {
 		Assembler assembler = new Assembler(program);
 		ListingProgramWriter listing = new ListingProgramWriter(program, align, logger.toMap(), lst);
-		ObjectProgramWriter object = new ObjectProgramWriter(program, obj);
+		
+		object.setProgram(program);
 		
 		//Reset location counter
-		program.setLocationCounter(program.getStart()); 
-		object.writeHeaderReferAndDefineRecords();
+		program.setLocationCounter(program.getStart());
+		object.start();
 		
 		for (Command c : commands) {
 			if (c instanceof ExpressionCommand) {
@@ -141,14 +177,12 @@ public class SicXeAssm {
 			}
 			program.incrementLocationCounter(c.getSize());
 		}
-		
-		object.writeModificationAndEndRecords();
+		object.end();
 		
 		lst.flush();
 		if (!logger.hasErrors()) {
 			obj.flush();
 		}
-		
 		
 		return logger.hasErrors();
 	}
@@ -171,29 +205,32 @@ public class SicXeAssm {
 			System.exit(2);
 		}
 		//Do pass one
-		SicXeAssm assm = new SicXeAssm(file);
+		SicXeAssm assm = new SicXeAssm(file, 4);
 		try {	
 			assm.passOne();
 		} catch (AssembleError e) {
-			System.out.printf("Syntax error in pass 1 (Row %d, Col %d) %s", 
+			System.out.printf("Syntax error in pass 1 (Row %d, Col %d) %s\n", 
 				e.getRow(), e.getCol(), e.getMessage());
+			System.exit(5);
 		}
 		//Open .lst and .obj files
+		String mainName = fileName.split("\\.")[0];
 		PrintWriter lst = null;
 		try {
-			lst = new PrintWriter(fileName + ".lst");
+			lst = new PrintWriter(mainName + ".lst");
 		} catch (FileNotFoundException e) {
 			System.err.println("Cannot create listing file!");
 			System.exit(3);
 		}
 		PrintWriter obj = null;
 		try {
-			obj = new PrintWriter(fileName + ".obj");
+			obj = new PrintWriter(mainName + ".obj");
 		} catch (FileNotFoundException e) {
 			System.err.println("Cannot create object file!");
 			System.exit(4);
 		}
-		boolean errors = assm.passTwo(lst, obj);
+		ObjectWriter object = new BeckObjectWriter(obj);
+		boolean errors = assm.passTwo(lst, obj, object);
 		//Run pass two, creating .lst and .obj file
 		if (errors) {
 			System.out.println("Assembly errors in pass 2. See listing file.");

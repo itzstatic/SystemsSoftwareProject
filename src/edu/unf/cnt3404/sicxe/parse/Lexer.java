@@ -10,7 +10,7 @@ import edu.unf.cnt3404.sicxe.syntax.data.HexData;
 //Reads many characters at a time and creates tokens
 public class Lexer implements Locatable {
 	
-	private static final String SIMPLE_CHARACTERS = "#@,+-*/()";
+	private static final String SIMPLE_CHARACTERS = "#@,+-*/()=&";
 	
 	private Scanner scanner;
 	//For peaking: If null, then a call to peek() needs to invoke next(),
@@ -139,11 +139,14 @@ public class Lexer implements Locatable {
 			if (mnemonic != null) {
 				return Token.mnemonic(row, col, mnemonic);
 			}
-			
-			return Token.symbol(row, col, string.toString());
+			String symbol = string.toString();
+			if (symbol.equalsIgnoreCase("EQ") || symbol.equalsIgnoreCase("NE")) {
+				return Token.simple(row, col, symbol);
+			}
+			return Token.symbol(row, col, symbol);
 		}
 		if(isSimple(c)) {
-			return Token.simple(row, col, c);
+			return Token.simple(row, col, Character.toString(c));
 		}
 		throw new AssembleError(scanner, "Bad character " + c);
 	}
@@ -169,6 +172,21 @@ public class Lexer implements Locatable {
 	public boolean accept(char c) {
 		Token token = peek();
 		boolean result = token != null && token.is(Token.Type.SIMPLE) && token.is(c);
+		if (result) {
+			try {
+				next();
+			} catch (AssembleError e) {
+				//If next throws an exception, then peek() should have returned null
+				//So result should have been false
+				throw new IllegalStateException();
+			}
+		}
+		return result;
+	}
+	
+	public boolean accept(String s) {
+		Token token = peek();
+		boolean result = token != null && token.is(Token.Type.SIMPLE) && token.is(s);
 		if (result) {
 			try {
 				next();
@@ -222,6 +240,14 @@ public class Lexer implements Locatable {
 		return null;
 	}
 	
+	public Data acceptData() {
+		Token token = accept(Token.Type.DATA);
+		if (token != null) {
+			return token.asData();
+		}
+		return null;
+	}
+	
 	public Integer acceptNumber() {
 		Token token = accept(Token.Type.NUMBER);
 		if (token != null) {
@@ -255,6 +281,14 @@ public class Lexer implements Locatable {
 	
 	public Mnemonic expectMnemonic() throws AssembleError {
 		return expect(Token.Type.MNEMONIC).asMnemonic();
+	}
+	
+	public Mnemonic acceptMnemonic() throws AssembleError {
+		Token token = accept(Token.Type.MNEMONIC);
+		if (token != null) {
+			return token.asMnemonic();
+		}
+		return null;
 	}
 	
 	public int expectNumber() throws AssembleError {

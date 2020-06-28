@@ -1,4 +1,4 @@
-package edu.unf.cnt3404.sicxe.object;
+package edu.unf.cnt3404.sicxe.writer.beck;
 
 import java.io.PrintWriter;
 

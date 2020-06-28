@@ -27,6 +27,10 @@ public class Expression {
 		this.root = root;
 	}
 	
+	public ExpressionNode getRoot() {
+		return root;
+	}
+	
 	public int getValue() {
 		if (evaluated) {
 			return value;
@@ -50,6 +54,10 @@ public class Expression {
 		throw new RuntimeException();
 	}
 	
+	public void collectLiterals(Program program) {
+		root.collectLiterals(program);
+	}
+	
 	public void evaluate(Command command, Program program) throws AssembleError {
 		if (evaluated) {
 			return;
@@ -63,7 +71,7 @@ public class Expression {
 		netSign = 0;
 		for (Term term : terms) {
 			Symbol symbol = term.getSymbol();
-			//Star terms have null symbol
+			//Star or data terms have null symbol
 			if (symbol != null && symbol.isExternal()) {
 				externals.add(term);
 			} else if (symbol == null || !symbol.isAbsolute()) {

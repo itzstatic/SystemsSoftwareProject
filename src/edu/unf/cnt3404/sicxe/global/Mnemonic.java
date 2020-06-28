@@ -15,6 +15,10 @@ public class Mnemonic {
 		this.format = format;
 	}
 	
+	public Mnemonic(String macroName) {
+		this(macroName, (byte)0, null);
+	}
+	
 	public String getName() {
 		return name;
 	}

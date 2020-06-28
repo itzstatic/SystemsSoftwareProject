@@ -14,7 +14,7 @@ public class Alignment {
 	//Updates the alignment information in light of the given command
 	public void update(Command c) {
 		maxLineLength = Math.max(maxLineLength, Integer.toString(c.getLine()).length());
-
+		
 		String label = c.getLabel();
 		if (label != null) {
 			maxLabelLength = Math.max(maxLabelLength, label.length());

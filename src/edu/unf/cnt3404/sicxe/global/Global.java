@@ -79,6 +79,7 @@ public class Global {
 		putInstruction("FLOAT", 0xC0, Format.FORMAT1);
 		putInstruction("FIX", 	0xC4, Format.FORMAT1);
 		putInstruction("NORM", 	0xC8, Format.FORMAT1);
+
 		//No opcode CC
 		putInstruction("LPS", 	0xD0, Format.FORMAT34M);
 		putInstruction("STI", 	0xD4, Format.FORMAT34M);
@@ -99,19 +100,29 @@ public class Global {
 		putDirective("NOBASE");
 		putDirective("RESB");
 		putDirective("RESW");
+		putDirective("RESF");
 		putDirective("BYTE");
 		putDirective("WORD");
 		putDirective("ORG");
 		putDirective("EXTREF");
 		putDirective("EXTDEF");
-		//Not implemented (Parser will recognize which are and aren't)
 		putDirective("LTORG");
 		putDirective("EQU");
+		//Not implemented (Parser will recognize which are and aren't)
 		putDirective("CSECT");
 		putDirective("USE");
 		
+		// Macro-related directives
+		putDirective("MACRO");
+		putDirective("IF");
+		putDirective("ELSE");
+		putDirective("ENDIF");
+		putDirective("MEND");
+		
+		
 		putRegister("A", 0);
 		putRegister("X", 1);
+		putRegister("B", 3);
 		putRegister("L", 2);
 		putRegister("S", 4);
 		putRegister("T", 5);

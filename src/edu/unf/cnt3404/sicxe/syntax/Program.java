@@ -9,20 +9,22 @@ import java.util.Map;
 //Symtab, etc.
 public class Program {
 	private String name;
-	private int start;
 	//The address of first instruction, or an integer less than 0 if
 	//there is no first instruction (not a runnable program)
 	private int first;
-	private int size;
 	//The contents of the base register, or, an integer less than 0 if
 	//base is disabled
 	private int base;
+	
+	private int start;
+	private int size;
 	private int locctr;
 	
 	private List<String> definitions = new ArrayList<>();
 	private List<String> references = new ArrayList<>();
 	
 	private Map<String, Symbol> symtab = new HashMap<>();
+	private Littab littab = new Littab();
 	
 	//Start directive methods
 	public void setName(String name) {
@@ -31,12 +33,7 @@ public class Program {
 	public String getName() {
 		return name;
 	}
-	public void setStart(int start) {
-		this.start = start;
-	}
-	public int getStart() {
-		return start;
-	}
+	
 	public boolean isRelocatable() {
 		return start == 0;
 	}
@@ -50,14 +47,20 @@ public class Program {
 	public int getFirst() {
 		return first;
 	}
+	
+	public int getStart() {
+		return start;
+	}
+	
+	public void setStart(int start) {
+		this.start = start;
+	}
+	
 	//Whether there's a first...
 	public boolean isRunnable() {
 		return first >= 0;
 	}
-	public int getSize() {
-		return size;
-	}
-	//Location counter methods
+	//Locctr methods
 	public void setLocationCounter(int locctr) {
 		this.locctr = locctr;
 		//When the locctr is rewound to something small, then
@@ -65,8 +68,8 @@ public class Program {
 		if (locctr - start > size) {
 			size = locctr - start;
 		}
-		
 	}
+	
 	public int getLocationCounter() {
 		return locctr;
 	}
@@ -116,5 +119,18 @@ public class Program {
 	}
 	public Symbol getSymbol(String symbol) {
 		return symtab.get(symbol);
+	}
+	//Literals methods
+	public void addLiteral(Data literal) {
+		littab.addLiteral(literal);
+	}
+	public void allocateLiterals(List<Command> commands) {
+		littab.allocate(this, commands);
+	}
+	public int getLiteral(Data literal) {
+		return littab.getLiteral(literal);
+	}
+	public int getSize() {
+		return size;
 	}
 }

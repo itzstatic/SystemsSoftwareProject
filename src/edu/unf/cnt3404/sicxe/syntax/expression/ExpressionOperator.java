@@ -12,8 +12,8 @@ import edu.unf.cnt3404.sicxe.syntax.Program;
 public class ExpressionOperator implements ExpressionNode {
 
 	private Type operator;
-	private ExpressionNode left;
-	private ExpressionNode right;
+	public final ExpressionNode left;
+	public final ExpressionNode right;
 	
 	public ExpressionOperator(Type operator, ExpressionNode left, 
 			ExpressionNode right) {
@@ -31,8 +31,20 @@ public class ExpressionOperator implements ExpressionNode {
 		case SUB: return l - r;
 		case MUL: return l * r;
 		case DIV: return l / r;
+		case EQ:  return castBool(l == r);
+		case NE:  return castBool(l != r);
 		default: throw new IllegalStateException(operator.toString());
 		}
+	}
+	
+	private int castBool(boolean b) {
+		return b ? 1 : 0;
+	}
+	
+	@Override
+	public void collectLiterals(Program program) {
+		left.collectLiterals(program);
+		right.collectLiterals(program);
 	}
 
 	@Override
@@ -87,10 +99,12 @@ public class ExpressionOperator implements ExpressionNode {
 	}
 	
 	public static enum Type {
-		ADD(0),
-		SUB(0),
-		MUL(1),
-		DIV(1);
+		EQ(0),
+		NE(1),
+		ADD(1),
+		SUB(1),
+		MUL(2),
+		DIV(2);
 		
 		//Higher integer means higher precedence: Do it first
 		private int precedence;
@@ -110,6 +124,8 @@ public class ExpressionOperator implements ExpressionNode {
 			case SUB: return "-";
 			case MUL: return "*";
 			case DIV: return "/";
+			case EQ: return "EQ";
+			case NE: return "NE";
 			default: throw new IllegalStateException();
 			}
 		}

@@ -3,7 +3,7 @@ package edu.unf.cnt3404.sicxe.syntax.data;
 import edu.unf.cnt3404.sicxe.syntax.Data;
 
 //Represents data from a hexadecimal string
-public class HexData implements Data {
+public class HexData extends Data {
 
 	private String value;
 	

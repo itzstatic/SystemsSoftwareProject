@@ -16,7 +16,6 @@ public class EndDirective extends AbstractCommand implements ExpressionCommand {
 	public EndDirective(Expression first) {
 		this.first = first;
 	}
-	
 	//If this method returns null, then this end directive didn't
 	//have a first expression
 	@Override

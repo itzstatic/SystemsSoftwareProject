@@ -13,17 +13,29 @@ import edu.unf.cnt3404.sicxe.syntax.command.Comment;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.BaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ByteDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.EndDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.EquDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtdefDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ExtrefDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.LtorgDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.NoBaseDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.OrgDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ResbDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.ResfDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.ReswDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.StartDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.WordDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.ElseDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.EndIfDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.IfDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroDefinitionDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroExpansionDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MendDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format1Instruction;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format2Instruction;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format34Instruction;
 import edu.unf.cnt3404.sicxe.syntax.command.instruction.TargetMode;
+import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionData;
+import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionMacroParameter;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNode;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNumber;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionOperator;
@@ -39,6 +51,7 @@ public class Parser implements Locatable {
 	public Parser(Lexer lexer) {
 		this.lexer = lexer;
 	}
+	
 	
 	//Returns the next command from the source, or, null if there
 	//are no commands left and the parsing is finished
@@ -64,15 +77,27 @@ public class Parser implements Locatable {
 		} else {
 			//See if there's a label
 			String label = lexer.acceptSymbol();
-			if (label != null) {
+			lexer.acceptWhitespace();
+			/*if (label != null) {
 				lexer.expectWhitespace();
-			}
+			}*/
 			
 			//If it's extended...
 			boolean extended = lexer.accept('+');
 			
 			//Get the mnemonic
-			Mnemonic mnemonic = lexer.expectMnemonic();
+			Mnemonic mnemonic = lexer.acceptMnemonic();
+			if (mnemonic == null) {
+				String symbol = lexer.acceptSymbol();
+				if (symbol != null) {
+					mnemonic = new Mnemonic(symbol);
+				} else if (label != null) {
+					mnemonic = new Mnemonic(label);
+					label = null;
+				} else {
+					throw new AssembleError(this, "Expected mnemonic or symbol for macro expansion");
+				}
+			}
 			
 			//Parse the rest of it, which depends on the Mnemonic itself
 			if (mnemonic.getFormat() == null) {
@@ -82,13 +107,22 @@ public class Parser implements Locatable {
 				case "END": result = parseEndDirective(); break;
 				case "RESB": result = parseResbDirective(); break;
 				case "RESW": result = parseReswDirective(); break;
+				case "RESF": result = parseResfDirective(); break;
 				case "BYTE": result = parseByteDirective(); break;
 				case "WORD": result = parseWordDirective(); break;
 				case "BASE": result = parseBaseDirective(); break;
 				case "EXTDEF": result = parseExtdefDirective(); break;
 				case "EXTREF": result = parseExtrefDirective(); break;
 				case "ORG": result = parseOrgDirective(); break;
-				default: throw new AssembleError(lexer, "Directive " + mnemonic.getName() + " not implemented");
+				case "LTORG": result = parseLtorgDirective(); break;
+				case "EQU": result = parseEquDirective(); break;
+				case "NOBASE": result = parseNoBaseDirective(); break;
+				case "MACRO": result = parseMacroDefinitionDirective(); break;
+				case "MEND": result = parseMendDirective(); break;
+				case "IF": result = parseIfDirective(); break;
+				case "ELSE": result = parseElseDirective(); break;
+				case "ENDIF": result = parseEndIfDirective(); break;
+				default: result = parseMacroExpansionDirective(); break;
 				}
 			} else {
 				//Instruction
@@ -108,7 +142,7 @@ public class Parser implements Locatable {
 			//This implies someone can extend an RSUB (The only F34 mnemonic)
 			if (extended && (mnemonic == null || (mnemonic.getFormat() != Format.FORMAT34 
 				&& mnemonic.getFormat() != Format.FORMAT34M))) {
-				throw new AssembleError(lexer, "Cannot extend mnemonic " + mnemonic);
+				throw new AssembleError(lexer, "Cannot extend mnemonic " + mnemonic.getName());
 			}
 			
 			result.setMnemonic(mnemonic);
@@ -179,7 +213,7 @@ public class Parser implements Locatable {
 		}
 		
 		//Get the operand
-		Expression expr = parseExpression();
+		Expression expr = requireExpression();
 		
 		boolean indexed = false;
 		//See if it's indexed or not
@@ -222,6 +256,12 @@ public class Parser implements Locatable {
 		return new ReswDirective(words);
 	}
 	
+	private Command parseResfDirective() throws AssembleError {
+		lexer.expectWhitespace();
+		int floats = lexer.expectNumber();
+		return new ResfDirective(floats);
+	}
+	
 	private Command parseByteDirective() throws AssembleError {
 		lexer.expectWhitespace();
 		Data data = lexer.expectData();
@@ -261,6 +301,75 @@ public class Parser implements Locatable {
 		return new OrgDirective(parseExpression());
 	}
 	
+	private Command parseLtorgDirective() throws AssembleError {
+		lexer.acceptWhitespace();
+		return new LtorgDirective();
+	}
+	
+	private Command parseEquDirective() throws AssembleError {
+		lexer.expectWhitespace();
+		return new EquDirective(parseExpression());
+	}
+	
+	private Command parseNoBaseDirective() throws AssembleError {
+		lexer.acceptWhitespace();
+		return new NoBaseDirective();
+	}
+	
+	private Command parseMacroDefinitionDirective() throws AssembleError {
+		List<String> parameters = new ArrayList<>();
+		if (lexer.acceptWhitespace() && lexer.accept('&')){
+			parameters.add(lexer.expectSymbol());
+			while (lexer.accept(','))
+			{
+				lexer.expect('&');
+				parameters.add(lexer.expectSymbol());
+			}
+		}
+		return new MacroDefinitionDirective(parameters);
+	}
+	
+	private Command parseMendDirective() throws AssembleError {
+		lexer.acceptWhitespace();
+		return new MendDirective();
+	}
+	
+	private Command parseMacroExpansionDirective() throws AssembleError {
+		lexer.acceptWhitespace();
+		List<Expression> arguments = new ArrayList<>();
+		Expression argument = parseExpression();
+		if (argument != null) {
+			arguments.add(argument);
+			while (lexer.accept(',')) {
+				arguments.add(requireExpression());
+			}
+		}
+		return new MacroExpansionDirective(arguments);
+	}
+	
+	private Command parseIfDirective() throws AssembleError {
+		lexer.acceptWhitespace();
+		return new IfDirective(requireExpression());
+	}
+	
+	private Command parseEndIfDirective() throws AssembleError {
+		lexer.acceptWhitespace();
+		return new EndIfDirective();
+	}
+	
+	private Command parseElseDirective() throws AssembleError {
+		lexer.acceptWhitespace();
+		return new ElseDirective();
+	}
+	
+	private Expression requireExpression() throws AssembleError {
+		Expression result = parseExpression();
+		if (result == null) {
+			throw new AssembleError(this, "Expected expression");
+		}
+		return result;
+	}
+	
 	//Attempts to parse an expression. Will stop parsing when the lexer reaches a newline
 	//token, a comment token, or an illegal token. Throws an exception if an illegal token 
 	//is reached. Implements Dijkstra's Shunting-Yard Algorithm to turn an infix
@@ -282,7 +391,11 @@ public class Parser implements Locatable {
 			if (expectsOperator) {
 				ExpressionOperator.Type operator;
 				//Read the operator
-				if (lexer.accept('+')) {
+				if (lexer.accept("EQ")) {
+					operator = ExpressionOperator.Type.EQ;
+				} else if (lexer.accept("NE")) {
+					operator = ExpressionOperator.Type.NE;
+				} else if (lexer.accept('+')) {
 					operator = ExpressionOperator.Type.ADD;
 				} else if (lexer.accept('-')) {
 					operator = ExpressionOperator.Type.SUB;
@@ -329,8 +442,12 @@ public class Parser implements Locatable {
 					nodes.add(new ExpressionSymbol(symbol));
 				} else if ((number = lexer.acceptNumber()) != null) {
 					nodes.add(new ExpressionNumber(number));
+				} else if (lexer.accept('=')) {
+					nodes.add(new ExpressionData(lexer.expectData()));
 				} else if (lexer.accept('*')) {
 					nodes.add(new ExpressionStar());
+				} else if (lexer.accept('&')) {
+					nodes.add(new ExpressionMacroParameter(lexer.expectSymbol()));
 				} else if (lexer.accept('(')) {
 					operators.push(null);
 					continue; //Continue so that I do not toggle expectsOperator

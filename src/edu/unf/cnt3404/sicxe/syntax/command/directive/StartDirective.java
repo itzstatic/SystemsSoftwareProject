@@ -7,7 +7,7 @@ public class StartDirective extends AbstractCommand {
 	private int start; //Address
 	
 	public StartDirective(int start) {
-		this.start = start;
+		this.start = Integer.parseInt(Integer.toString(start), 16);
 	}
 	
 	public int getStart() {
@@ -21,6 +21,6 @@ public class StartDirective extends AbstractCommand {
 
 	@Override
 	public String getArgument() {
-		return " " + Integer.toString(start);
+		return " " + Integer.toString(start, 16);
 	}
 }

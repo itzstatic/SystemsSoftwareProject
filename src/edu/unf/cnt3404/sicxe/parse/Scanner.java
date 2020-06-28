@@ -10,12 +10,15 @@ public class Scanner implements Locatable {
 	
 	public static final char EOS = (char)-1;
 	
+	private final int tabWidth;
+	
 	private BufferedReader reader;
 	private int row = 1;
 	private int col = 1;
 	
-	public Scanner(BufferedReader reader) {
+	public Scanner(BufferedReader reader, int tabWidth) {
 		this.reader = reader;
+		this.tabWidth = tabWidth;
 	}
 	
 	@Override
@@ -31,8 +34,12 @@ public class Scanner implements Locatable {
 	//special behavior for Microsoft line separator \r\n
 	public char next() {
 		try {
-			col++;
 			char c = (char)reader.read();
+			if (c == '\t') {
+				col += tabWidth;
+			} else {
+				col++;
+			}
 			if (c == '\r' && peek() == '\n') {
 				//Microsoft line terminator:
 				reader.read(); //Consume the \n

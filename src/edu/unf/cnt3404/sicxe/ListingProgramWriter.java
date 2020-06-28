@@ -32,7 +32,7 @@ public class ListingProgramWriter {
 		if (c instanceof Comment) {
 			out.printf("%8s", ""); //Location counter place holder
 			writeColumn(align.getMaxNameLength(), "."); //Place a dot in the name column
-			out.print(" " + c.getComment());
+			out.print(c.getComment());
 		} else {
 			out.printf("%04X    ", program.getLocationCounter()); //4 spaces 
 			writeColumn(align.getMaxLabelLength(), c.getLabel());
@@ -59,6 +59,9 @@ public class ListingProgramWriter {
 			}
 		}
 		out.println();
+		for (AssembleError e : errors.values()) {
+			System.err.printf("R: %d, C: %d; %s\n", e.getRow(), e.getCol(), e.getMessage());
+		}
 	}
 	
 	private void writeColumn(int width, int i) {

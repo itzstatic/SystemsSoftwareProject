@@ -7,7 +7,7 @@ public class Term {
 	private Symbol symbol;
 	private boolean positive = true;
 	
-	//Constructs a positive star (*) term
+	//Constructs a positive star (*) term or a data term
 	public Term() { }
 	
 	//Constructs a term with a positive signed symbol
@@ -21,7 +21,7 @@ public class Term {
 	}
 	
 	//Returns the symbol, if this relative term is a relative symbol
-	//Otherwise, returns null if this relative term is a star
+	//Otherwise, returns null if this relative term is a star or data
 	public Symbol getSymbol() {
 		return symbol;
 	}

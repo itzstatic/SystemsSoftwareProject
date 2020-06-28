@@ -1,23 +1,25 @@
-package edu.unf.cnt3404.sicxe;
+package edu.unf.cnt3404.sicxe.writer;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 
-import edu.unf.cnt3404.sicxe.object.DefineRecord;
-import edu.unf.cnt3404.sicxe.object.ModificationRecord;
-import edu.unf.cnt3404.sicxe.object.ReferRecord;
-import edu.unf.cnt3404.sicxe.object.TextRecord;
+import edu.unf.cnt3404.sicxe.ObjectWriter;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.Symbol;
 import edu.unf.cnt3404.sicxe.syntax.command.ModifiableCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.OrgDirective;
 import edu.unf.cnt3404.sicxe.syntax.expression.Term;
+import edu.unf.cnt3404.sicxe.writer.beck.DefineRecord;
+import edu.unf.cnt3404.sicxe.writer.beck.ModificationRecord;
+import edu.unf.cnt3404.sicxe.writer.beck.ReferRecord;
+import edu.unf.cnt3404.sicxe.writer.beck.TextRecord;
 
 //Prints an object program to a PrintWriter.
-public class ObjectProgramWriter {
+public class BeckObjectWriter implements ObjectWriter {
 	
 	private Program program;
 	private PrintWriter out;
@@ -25,12 +27,17 @@ public class ObjectProgramWriter {
 	
 	private TextRecord text; //Current text record
 	
-	public ObjectProgramWriter(Program program, PrintWriter out) {
-		this.program = program;
+	public BeckObjectWriter(PrintWriter out) {
 		this.out = out;
 	}
 	
-	public void writeHeaderReferAndDefineRecords() {
+	@Override
+	public void setProgram(Program p) {
+		program = p;
+	}
+	
+	@Override
+	public void start() {
 		//Write the header record
 		out.print('H');
 		out.printf("%-6s", program.getName());
@@ -73,10 +80,12 @@ public class ObjectProgramWriter {
 	}
 	
 	//Writes the command to the object program
+	@Override
 	public void write(Command c) {
 		//Resw/Resb and any directive that increments location counter (size > 0)
 		//But does not write code (not a WriteableCommand)
-		if (c.getSize() > 0 && !(c instanceof WriteableCommand)) {
+		if ((c.getSize() > 0 && !(c instanceof WriteableCommand))
+			|| c instanceof OrgDirective) {
 			writeCurrentTextRecord();
 		}
 		
@@ -137,7 +146,8 @@ public class ObjectProgramWriter {
 		}
 	}
 	
-	public void writeModificationAndEndRecords() {
+	@Override
+	public void end() {
 		writeCurrentTextRecord();
 		
 		if (program.isRelocatable()) {

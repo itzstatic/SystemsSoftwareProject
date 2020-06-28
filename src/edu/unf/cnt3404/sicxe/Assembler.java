@@ -32,7 +32,7 @@ public class Assembler {
 		if (c instanceof Format34Instruction) assemble((Format34Instruction)c);
 	}
 	
-	private void assemble(Format2Instruction c) {
+	private void assemble(Format2Instruction c) throws AssembleError {
 		String r1 = c.getRegisterOne();
 		String r2 = c.getRegisterTwo();
 		byte n = c.getNumber();
@@ -48,9 +48,24 @@ public class Assembler {
 		
 		switch(c.getMnemonic().getFormat()) {
 		case FORMAT2N: c.setArgument(n); break;
-		case FORMAT2R: c.setArgument(b1); break;
-		case FORMAT2RN: c.setArgument(b1, n); break;
-		case FORMAT2RR: c.setArgument(b1, b2); break;
+		case FORMAT2R: 
+			if (b1 == null) {
+				throw new AssembleError(c, "Unrecognized register " + r1);
+			}
+			c.setArgument(b1); break;
+		case FORMAT2RN: 
+			if (b1 == null) {
+				throw new AssembleError(c, "Unrecognized register " + r1);
+			}
+			c.setArgument(b1, n); break;
+		case FORMAT2RR: 
+			if (b1 == null) {
+				throw new AssembleError(c, "Unrecognized register " + r1);
+			}
+			if (b2 == null) {
+				throw new AssembleError(c, "Unrecognized register " + r2);
+			}
+			c.setArgument(b1, b2); break;
 		default: throw new IllegalStateException(c.getMnemonic().getFormat().toString());
 		}
 		
@@ -68,9 +83,9 @@ public class Assembler {
 		//Format 3 instructions cannot have more than 1 unpaired relative
 		if (!c.isExtended() && Math.abs(expr.getNetSign()) > 1) {
 			throw new AssembleError(c, "More than 1 unpaired local relative term and not extended");
-		}
+
 		//Extended can have anything
-		if (c.isExtended()) {
+		} else if (c.isExtended()) {
 			c.setAddressMode(AddressMode.ABSOLUTE);
 			c.setArgument(expr.getValue());
 		//Absolute expression, not extended
@@ -144,5 +159,4 @@ public class Assembler {
 	private void assemble(NoBaseDirective c) {
 		program.disableBase();
 	}
-	
 }

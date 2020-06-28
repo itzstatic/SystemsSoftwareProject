@@ -7,7 +7,7 @@ public class Symbol {
 	private boolean external;
 	private boolean absolute;
 	
-	//Defines a local symbol
+	//Defines a local symbol;
 	public Symbol(String name, int value, boolean absolute) {
 		this.name = name;
 		this.value = value;

@@ -10,6 +10,7 @@ public abstract class AbstractCommand implements Command {
 	private String comment;
 	private int line;
 	private Mnemonic mnemonic;
+	private int blockNumber;
 	
 	@Override
 	public void setLabel(String label) {

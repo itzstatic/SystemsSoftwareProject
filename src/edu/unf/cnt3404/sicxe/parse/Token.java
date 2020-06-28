@@ -10,7 +10,7 @@ public class Token implements Locatable {
 	//The actual type of value varies depending on token type:
 	//Number tokens contain a boxed Integer;
 	//Symbol and comment tokens contain a String;
-	//Simple tokens contain a boxed Character;
+	//Simple tokens contain a String;
 	//Data tokens contain a Data object;
 	//Whitespace tokens contain a null pointer;
 	//Newline tokens contain a null pointer;
@@ -43,8 +43,8 @@ public class Token implements Locatable {
 	public static Token mnemonic(int row, int col, Mnemonic mnemonic) {
 		return new Token(row, col, Type.MNEMONIC, mnemonic);
 	}
-	public static Token simple(int row, int col, char c) {
-		return new Token(row, col, Type.SIMPLE, c);
+	public static Token simple(int row, int col, String s) {
+		return new Token(row, col, Type.SIMPLE, s);
 	}
 	public static Token whitespace(int row, int col) {
 		return new Token(row, col, Type.WHITESPACE, null);
@@ -79,7 +79,12 @@ public class Token implements Locatable {
 	}
 	
 	public boolean is(char c) {
-		return ((Character)value).charValue() == c;
+		String s = (String) value;
+		return s.length() == 1 && s.charAt(0) == c;
+	}
+	
+	public boolean is(String s) {
+		return s.equals((String) value);
 	}
 	
 	public boolean is(Type t) {
@@ -93,7 +98,7 @@ public class Token implements Locatable {
 		case SYMBOL: return asSymbol();
 		case COMMENT: return asComment();
 		case DATA: return asData().toString();
-		case SIMPLE: return Character.toString((Character)value);
+		case SIMPLE: return value.toString();
 		case WHITESPACE: return "whitespace";
 		case NEWLINE: return "newline";
 		case MNEMONIC: return asMnemonic().getName();
@@ -106,7 +111,7 @@ public class Token implements Locatable {
 		SYMBOL,
 		COMMENT,
 		DATA, //X'...' or C'...'
-		SIMPLE, //A simple token is one character
+		SIMPLE, //A simple token is one character (or NE or EQ)
 		WHITESPACE,
 		NEWLINE, 
 		MNEMONIC

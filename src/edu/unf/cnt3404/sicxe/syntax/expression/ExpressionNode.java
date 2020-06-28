@@ -11,6 +11,8 @@ public interface ExpressionNode {
 	//Returns the value of this expression
 	int getValue(Command command, Program program) throws AssembleError;
 	
+	default void collectLiterals(Program program) { }
+	
 	//Write infix string of this expression
 	void write(StringBuilder infix);
 	

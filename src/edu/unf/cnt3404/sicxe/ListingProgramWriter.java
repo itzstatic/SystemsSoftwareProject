@@ -8,6 +8,7 @@ import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.Comment;
 import edu.unf.cnt3404.sicxe.syntax.command.WriteableCommand;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroExpansionDirective;
 
 //Prints a listing file to a PrintWriter
 public class ListingProgramWriter {
@@ -35,7 +36,16 @@ public class ListingProgramWriter {
 			out.print(c.getComment());
 		} else {
 			out.printf("%04X    ", program.getLocationCounter()); //4 spaces 
-			writeColumn(align.getMaxLabelLength(), c.getLabel());
+			if (c instanceof MacroExpansionDirective)
+			{
+				String label = c.getLabel();
+				if (label == null) {
+					label = "";
+				}
+				writeColumn(align.getMaxLabelLength(), "." + label);
+			} else {
+				writeColumn(align.getMaxLabelLength(), c.getLabel());
+			}
 			writeColumn(align.getMaxNameLength(), c.getName());
 			writeColumn(align.getMaxArgumentLength(), c.getArgument());
 			

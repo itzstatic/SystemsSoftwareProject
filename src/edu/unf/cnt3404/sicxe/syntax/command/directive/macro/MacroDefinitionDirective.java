@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.command.AbstractCommand;
 
-public class MacroDefinitionDirective extends AbstractCommand {
+public class MacroDefinitionDirective extends AbstractCommand implements MacroDirective {
 
 	private List<String> parameters;
 	

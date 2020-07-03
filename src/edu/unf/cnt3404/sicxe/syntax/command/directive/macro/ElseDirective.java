@@ -6,7 +6,7 @@ import java.util.List;
 import edu.unf.cnt3404.sicxe.syntax.Command;
 import edu.unf.cnt3404.sicxe.syntax.command.AbstractCommand;
 
-public class ElseDirective extends AbstractCommand {
+public class ElseDirective extends AbstractCommand implements MacroDirective {
 
 	private List<Command> commands = new ArrayList<>();
 	

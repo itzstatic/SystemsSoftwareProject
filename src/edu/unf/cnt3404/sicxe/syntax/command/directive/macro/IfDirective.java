@@ -8,7 +8,7 @@ import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.command.AbstractCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.ExpressionCommand;
 
-public class IfDirective extends AbstractCommand implements ExpressionCommand {
+public class IfDirective extends AbstractCommand implements ExpressionCommand, MacroDirective {
 
 	private Expression condition;
 	private List<Command> commands = new ArrayList<>();

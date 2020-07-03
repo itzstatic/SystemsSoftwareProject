@@ -12,7 +12,9 @@ import edu.unf.cnt3404.sicxe.syntax.Expression;
 import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.ExpressionCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroDefinitionDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroExpansionDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.instruction.Format34Instruction;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionMacroParameter;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNode;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionOperator;
@@ -35,25 +37,23 @@ public class MacroPreprocessor {
 		if (new HashSet<>(macro.getParameters()).size() != macro.getParameters().size()) {
 			throw new AssembleError(macro, "Duplicate macro symbol");
 		}
-		
 		usePositionalNotation(macro, macro.getParameters());
 		
 		macros.put(macro.getLabel(), macro);
 	}
 	
 	private void usePositionalNotation(Command c, List<String> parameters) throws AssembleError {
-		if (c instanceof MacroDefinitionDirective) {
-			for (Command d : ((MacroDefinitionDirective)c).getCommands()) {
+		if (c instanceof MacroDirective) {
+			for (Command d : ((MacroDirective)c).getCommands()) {
 				usePositionalNotation(d, parameters);
 			}
 		} else if (c instanceof ExpressionCommand) {
 			Expression e = ((ExpressionCommand)c).getExpression();
 			usePositionalNotation(c, e.getRoot(), parameters);
-		}
+		} 
 	}
 	
-	private void usePositionalNotation(Command c, ExpressionNode e, List<String> parameters)
-	 throws AssembleError {
+	private void usePositionalNotation(Command c, ExpressionNode e, List<String> parameters) throws AssembleError {
 		if (e instanceof ExpressionOperator) {
 			ExpressionOperator binary = (ExpressionOperator) e;
 			usePositionalNotation(c, binary.left, parameters);
@@ -78,8 +78,8 @@ public class MacroPreprocessor {
 		}
 		
 		List<Command> result = new ArrayList<>();
-		new MacroExpander(result, expansion.getArguments(), program).expand(macro);
-	
+		new MacroExpander(this, result, expansion.getArguments(), program).expandRecursive(macro);
+
 		result.get(0).setLabel(expansion.getLabel());
 		
 		return result;

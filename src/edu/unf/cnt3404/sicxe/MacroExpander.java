@@ -14,26 +14,29 @@ import edu.unf.cnt3404.sicxe.syntax.Program;
 import edu.unf.cnt3404.sicxe.syntax.command.ExpressionCommand;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.IfDirective;
 import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroDefinitionDirective;
+import edu.unf.cnt3404.sicxe.syntax.command.directive.macro.MacroExpansionDirective;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionMacroParameter;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionNode;
 import edu.unf.cnt3404.sicxe.syntax.expression.ExpressionOperator;
 
 public class MacroExpander {
 	
+	private final MacroPreprocessor preproccessor;
 	private final List<Command> commands;
 	private final List<Expression> arguments;
 	private final Program program;
 	
-	public MacroExpander(List<Command> commands, List<Expression> arguments, Program program) {
+	public MacroExpander(MacroPreprocessor preproccessor, List<Command> commands, List<Expression> arguments, Program program) {
+		this.preproccessor = preproccessor;
 		this.commands = commands;
 		this.arguments = arguments;
 		this.program = program;
 	}
 	
-	public void expand(Command c) throws AssembleError {
+	public void expandRecursive(Command c) throws AssembleError {
 		if (c instanceof MacroDefinitionDirective) {
 			for (Command d : ((MacroDefinitionDirective)c).getCommands()) {
-				expand(d);
+				expandRecursive(d);
 			}
 		} else if (c instanceof IfDirective) {
 			IfDirective ifD = ((IfDirective)c);
@@ -42,12 +45,16 @@ public class MacroExpander {
 			condition.evaluate(c, program);
 			if (condition.getValue() == 1) {
 				for (Command d : ifD.getCommands()) {
-					expand(d);
+					expandRecursive(d);
 				}
 			} else if (ifD.getElse() != null) {
 				for (Command d : ifD.getElse().getCommands()) {
-					expand(d);
+					expandRecursive(d);
 				}
+			}
+		} else if (c instanceof MacroExpansionDirective) {
+			for (Command d : preproccessor.expand((MacroExpansionDirective)c)) {
+				expandRecursive(d);
 			}
 		} else {
 			if (c instanceof ExpressionCommand) {
